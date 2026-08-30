@@ -1,739 +1,287 @@
-import {
-  useEffect,
-  useState
-} from "react";
+import { useState, useRef } from "react";
 
 import type { Contact } from "./types/Contact";
+import type { ContactStatus } from "./types/Queue";
 
-type SendStatus =
-  | "waiting"
-  | "sending"
-  | "success"
-  | "error";
 
-type ContactStatus = {
-  [id: number]: SendStatus;
-};
+
+import WhatsAppStatus from "./components/WhatsAppStatus";
+
+import MessageForm from "./components/MessageForm";
+import QueueProgress from "./components/QueueProgress";
+import { useWhatsApp } from "./hooks/useWhatsapp";
+import ContactList from "./components/Contactlist";
 
 function App() {
+const {
+status,
+qr,
+connected,
+disconnecting,
+desconectar
+} = useWhatsApp();
 
-  // =========================
-  // WHATSAPP
-  // =========================
+const stopRequested =
+useRef(false);
 
-  const [status, setStatus] =
-    useState("🟡 Conectando...");
+const [contacts] =
+useState<Contact[]>([
+{
+id: 1,
+name: "Aline",
+number: "5593992216545"
+},
+{
+id: 2,
+name: "Gabriel",
+number: "5521959240257"
+},
+{
+id: 3,
+name: "Brenno",
+number: "5593991902915"
+}
+]);
 
-  const [qr, setQr] =
-    useState<string | null>(null);
+const [selectedContacts, setSelectedContacts] =
+useState<number[]>([]);
 
-  const [connected, setConnected] =
-    useState(false);
+const [message, setMessage] =
+useState("");
 
-  const [disconnecting, setDisconnecting] =
-    useState(false);
+const [intervalSeconds, setIntervalSeconds] =
+useState(5);
 
+const [sending, setSending] =
+useState(false);
 
-  // =========================
-  // CONTATOS
-  // =========================
+const [contactStatus, setContactStatus] =
+useState<ContactStatus>({});
 
-  const [contacts] =
-    useState<Contact[]>([
-      {
-        id: 1,
-        name: "Aline",
-        number: "5593992216545"
-      },
-      {
-        id: 2,
-        name: "Gabriel",
-        number: "5521959240257"
-      },
-      {
-        id: 3,
-        name: "Brenno",
-        number: "5593991902915"
-      }
-    ]);
+const [currentIndex, setCurrentIndex] =
+useState(0);
 
-  const [selectedContacts, setSelectedContacts] =
-    useState<number[]>([]);
+const [result, setResult] =
+useState("");
 
-
-  // =========================
-  // MENSAGEM
-  // =========================
-
-  const [message, setMessage] =
-    useState("");
-
-
-  // =========================
-  // FILA
-  // =========================
-
-  const [intervalSeconds, setIntervalSeconds] =
-    useState(5);
-
-  const [sending, setSending] =
-    useState(false);
-
-  const [contactStatus, setContactStatus] =
-    useState<ContactStatus>({});
-
-  const [currentIndex, setCurrentIndex] =
-    useState(0);
+function toggleContact(id: number) {
+setSelectedContacts((current) => {
+if (current.includes(id)) {
+return current.filter(
+(contactId) => contactId !== id
+);
+}
 
 
-  // =========================
-  // RESULTADO
-  // =========================
-
-  const [result, setResult] =
-    useState("");
+  return [...current, id];
+});
 
 
-  // =========================
-  // WHATSAPP EVENTS
-  // =========================
+}
 
- useEffect(() => {
+function toggleAll() {
+if (
+selectedContacts.length ===
+contacts.length
+) {
+setSelectedContacts([]);
+return;
+}
 
-  window.whatsapp.onQR(
-    (qrData) => {
-      console.log(
-        "REACT QR:",
-        !!qrData
-      );
 
-      setQr(qrData);
-    }
+setSelectedContacts(
+  contacts.map((contact) => contact.id)
+);
+
+}
+
+function pararEnvio() {
+stopRequested.current = true;
+}
+
+function wait(milliseconds: number) {
+return new Promise<void>((resolve) => {
+setTimeout(resolve, milliseconds);
+});
+}
+
+async function enviarFila() {
+if (!connected) {
+setResult(
+"❌ WhatsApp não conectado."
+);
+return;
+}
+
+
+if (selectedContacts.length === 0) {
+  setResult(
+    "❌ Selecione pelo menos um contato."
   );
+  return;
+}
 
-
-  window.whatsapp.onStatus(
-    (value) => {
-
-      console.log(
-        "REACT STATUS:",
-        value
-      );
-
-      if (value === "connected") {
-
-        setConnected(true);
-
-        setStatus(
-          "🟢 WhatsApp conectado"
-        );
-      }
-
-      if (value === "disconnected") {
-
-        setConnected(false);
-
-        setStatus(
-          "🔴 WhatsApp desconectado"
-        );
-      }
-
-    }
+if (!message.trim()) {
+  setResult(
+    "❌ Digite uma mensagem."
   );
+  return;
+}
 
+if (intervalSeconds < 0) {
+  setResult(
+    "❌ Intervalo inválido."
+  );
+  return;
+}
 
-  // Recupera o estado atual
-  // caso o evento já tenha acontecido
+setSending(true);
 
-  window.whatsapp
-    .getStatus()
-    .then((value) => {
+stopRequested.current = false;
 
-      console.log(
-        "STATUS ATUAL:",
-        value
-      );
+setResult("");
 
-      if (value === "connected") {
+setCurrentIndex(0);
 
-        setConnected(true);
+setContactStatus({});
 
-        setStatus(
-          "🟢 WhatsApp conectado"
-        );
-      }
+const queue = contacts.filter(
+  (contact) =>
+    selectedContacts.includes(contact.id)
+);
 
-      if (value === "disconnected") {
-
-        setConnected(false);
-
-        setStatus(
-          "🔴 WhatsApp desconectado"
-        );
-      }
-
-    });
-
-}, []);
-
-
-  // =========================
-  // DESCONNECTAR
-  // =========================
-
-  async function desconectar() {
-
-    try {
-
-      setDisconnecting(true);
-
-      await window.whatsapp.desconectar();
-
-      setConnected(false);
-
-      setQr(null);
-
-      setStatus(
-        "🔴 WhatsApp desconectado"
-      );
-
-    } catch (error) {
-
-      console.error(
-        "Erro ao desconectar:",
-        error
-      );
-
-    } finally {
-
-      setDisconnecting(false);
-
-    }
-
+for (
+  let index = 0;
+  index < queue.length;
+  index++
+) {
+  if (stopRequested.current) {
+    break;
   }
 
+  const contact = queue[index];
 
-  // =========================
-  // SELECIONAR CONTATO
-  // =========================
+  setCurrentIndex(index + 1);
 
-  function toggleContact(id: number) {
+  setContactStatus((current) => ({
+    ...current,
+    [contact.id]: "sending"
+  }));
 
-    setSelectedContacts((current) => {
-
-      if (current.includes(id)) {
-
-        return current.filter(
-          (contactId) =>
-            contactId !== id
-        );
-
-      }
-
-      return [
-        ...current,
-        id
-      ];
-
-    });
-
-  }
-
-
-  // =========================
-  // SELECIONAR TODOS
-  // =========================
-
-  function toggleAll() {
-
-    if (
-      selectedContacts.length ===
-      contacts.length
-    ) {
-
-      setSelectedContacts([]);
-
-      return;
-    }
-
-    setSelectedContacts(
-      contacts.map(
-        (contact) => contact.id
-      )
+  try {
+    await window.whatsapp.enviarMensagem(
+      contact.number,
+      message
     );
 
+    setContactStatus((current) => ({
+      ...current,
+      [contact.id]: "success"
+    }));
+  } catch (error) {
+    console.error(
+      `Erro ao enviar para ${contact.name}:`,
+      error
+    );
+
+    setContactStatus((current) => ({
+      ...current,
+      [contact.id]: "error"
+    }));
   }
 
-
-  // =========================
-  // ESPERA
-  // =========================
-
-  function wait(
-    milliseconds: number
+  if (
+    index < queue.length - 1
   ) {
-
-    return new Promise<void>(
-      (resolve) => {
-
-        setTimeout(
-          resolve,
-          milliseconds
-        );
-
-      }
+    await wait(
+      intervalSeconds * 1000
     );
 
+    if (stopRequested.current) {
+      break;
+    }
   }
+}
+
+setSending(false);
+
+setResult(
+  stopRequested.current
+    ? "⏹️ Fila interrompida."
+    : "✅ Fila finalizada."
+);
 
 
-  // =========================
-  // ENVIAR FILA
-  // =========================
+}
 
-  async function enviarFila() {
+return (
+<main
+style={{
+maxWidth: 700,
+margin: "40px auto",
+padding: 20
+}}
+> <h1>
+Disparador WhatsApp </h1>
 
-    if (!connected) {
 
-      setResult(
-        "❌ WhatsApp não conectado."
-      );
+  <WhatsAppStatus
+    status={status}
+    qr={qr}
+    connected={connected}
+    disconnecting={disconnecting}
+    sending={sending}
+    onDisconnect={desconectar}
+  />
 
-      return;
+  <hr />
 
+  <ContactList
+    contacts={contacts}
+    selectedContacts={selectedContacts}
+    contactStatus={contactStatus}
+    sending={sending}
+    onToggle={toggleContact}
+    onToggleAll={toggleAll}
+  />
+
+  <hr />
+
+  <MessageForm
+    message={message}
+    intervalSeconds={intervalSeconds}
+    sending={sending}
+    onMessageChange={setMessage}
+    onIntervalChange={setIntervalSeconds}
+  />
+
+  <QueueProgress
+    sending={sending}
+    currentIndex={currentIndex}
+    total={selectedContacts.length}
+    onStop={pararEnvio}
+  />
+
+  <button
+    type="button"
+    onClick={enviarFila}
+    disabled={
+      sending || !connected
     }
-
-    if (
-      selectedContacts.length === 0
-    ) {
-
-      setResult(
-        "❌ Selecione pelo menos um contato."
-      );
-
-      return;
-
-    }
-
-    if (!message.trim()) {
-
-      setResult(
-        "❌ Digite uma mensagem."
-      );
-
-      return;
-
-    }
-
-    if (intervalSeconds < 0) {
-
-      setResult(
-        "❌ Intervalo inválido."
-      );
-
-      return;
-
-    }
-
-
-    // =========================
-    // INICIA FILA
-    // =========================
-
-    setSending(true);
-
-    setResult("");
-
-    setCurrentIndex(0);
-
-    setContactStatus({});
-
-
-    const queue = contacts.filter(
-      (contact) =>
-        selectedContacts.includes(
-          contact.id
-        )
-    );
-
-
-    // =========================
-    // PROCESSA FILA
-    // =========================
-
-    for (
-      let index = 0;
-      index < queue.length;
-      index++
-    ) {
-
-      const contact =
-        queue[index];
-
-
-      setCurrentIndex(
-        index + 1
-      );
-
-
-      setContactStatus(
-        (current) => ({
-          ...current,
-          [contact.id]: "sending"
-        })
-      );
-
-
-      try {
-
-        await window.whatsapp.enviarMensagem(
-          contact.number,
-          message
-        );
-
-
-        setContactStatus(
-          (current) => ({
-            ...current,
-            [contact.id]: "success"
-          })
-        );
-
-
-      } catch (error) {
-
-        console.error(
-          `Erro ao enviar para ${contact.name}:`,
-          error
-        );
-
-
-        setContactStatus(
-          (current) => ({
-            ...current,
-            [contact.id]: "error"
-          })
-        );
-
-      }
-
-
-      // =========================
-      // INTERVALO
-      // =========================
-
-      if (
-        index <
-        queue.length - 1
-      ) {
-
-        await wait(
-          intervalSeconds * 1000
-        );
-
-      }
-
-    }
-
-
-    setSending(false);
-
-    setResult(
-      "✅ Fila finalizada."
-    );
-
-  }
-
-
-  // =========================
-  // RENDER
-  // =========================
-
-  return (
-
-    <main
-      style={{
-        maxWidth: 700,
-        margin: "40px auto",
-        padding: 20
-      }}
-    >
-
-      <h1>
-        Disparador WhatsApp
-      </h1>
-
-
-      {/* STATUS */}
-
-      <h3>
-        {status}
-      </h3>
-
-
-      {/* QR */}
-
-      {qr && (
-
-        <div>
-
-          <p>
-            Escaneie o QR Code:
-          </p>
-
-          <img
-            src={qr}
-            width={300}
-            height={300}
-            alt="QR Code"
-          />
-
-        </div>
-
-      )}
-
-
-      {/* DESCONCTAR */}
-
-      {connected && (
-
-        <button
-          onClick={desconectar}
-          disabled={
-            disconnecting ||
-            sending
-          }
-        >
-          {disconnecting
-            ? "Desconectando..."
-            : "Desconectar WhatsApp"}
-        </button>
-
-      )}
-
-
-      <hr />
-
-
-      {/* CONTATOS */}
-
-      <h2>
-        Contatos
-      </h2>
-
-
-      <button
-        type="button"
-        onClick={toggleAll}
-        disabled={sending}
-      >
-        {selectedContacts.length ===
-        contacts.length
-          ? "Desmarcar todos"
-          : "Selecionar todos"}
-      </button>
-
-
-      <div
-        style={{
-          marginTop: 15
-        }}
-      >
-
-        {contacts.map(
-          (contact) => {
-
-            const selected =
-              selectedContacts.includes(
-                contact.id
-              );
-
-            const contactState =
-              contactStatus[
-                contact.id
-              ];
-
-
-            return (
-
-              <div
-                key={contact.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "8px 0"
-                }}
-              >
-
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  disabled={sending}
-                  onChange={() =>
-                    toggleContact(
-                      contact.id
-                    )
-                  }
-                />
-
-
-                <span>
-                  {contact.name}
-                </span>
-
-
-                <span>
-                  {contact.number}
-                </span>
-
-
-                {contactState ===
-                  "sending" && (
-                  <span>
-                    ⏳
-                  </span>
-                )}
-
-
-                {contactState ===
-                  "success" && (
-                  <span>
-                    ✅
-                  </span>
-                )}
-
-
-                {contactState ===
-                  "error" && (
-                  <span>
-                    ❌
-                  </span>
-                )}
-
-              </div>
-
-            );
-
-          }
-        )}
-
-      </div>
-
-
-      <hr />
-
-
-      {/* MENSAGEM */}
-
-      <h2>
-        Mensagem
-      </h2>
-
-
-      <textarea
-        value={message}
-        onChange={(event) =>
-          setMessage(
-            event.target.value
-          )
-        }
-        placeholder="Digite sua mensagem..."
-        rows={5}
-        style={{
-          width: "100%",
-          resize: "vertical"
-        }}
-        disabled={sending}
-      />
-
-
-      {/* INTERVALO */}
-
-      <div
-        style={{
-          marginTop: 15
-        }}
-      >
-
-        <label>
-          Intervalo entre mensagens:
-        </label>
-
-
-        <input
-          type="number"
-          min="0"
-          value={intervalSeconds}
-          onChange={(event) =>
-            setIntervalSeconds(
-              Number(
-                event.target.value
-              )
-            )
-          }
-          disabled={sending}
-          style={{
-            marginLeft: 10,
-            width: 70
-          }}
-        />
-
-
-        <span>
-          {" "}segundos
-        </span>
-
-      </div>
-
-
-      {/* PROGRESSO */}
-
-      {sending && (
-
-        <p>
-
-          Enviando{" "}
-          {currentIndex}{" "}
-          de{" "}
-          {selectedContacts.length}
-
-        </p>
-
-      )}
-
-
-      {/* BOTÃO */}
-
-      <button
-        type="button"
-        onClick={enviarFila}
-        disabled={
-          sending ||
-          !connected
-        }
-        style={{
-          marginTop: 20
-        }}
-      >
-
-        {sending
-          ? "Enviando..."
-          : "Enviar selecionadoss"}
-
-      </button>
-
-
-      {/* RESULTADO */}
-
-      <p>
-        {result}
-      </p>
-
-    </main>
-
-  );
-
+    style={{
+      marginTop: 20
+    }}
+  >
+    {sending
+      ? "Enviando..."
+      : "Enviar selecionados"}
+  </button>
+
+  <p>{result}</p>
+</main>
+
+
+);
 }
 
 export default App;
