@@ -1,195 +1,197 @@
 import { useState } from "react";
 
-import type { Contact } from "./types/Contact";
-
 import { useWhatsApp } from "./hooks/useWhatsapp";
 import { useMessageQueue } from "./hooks/useMessageQueue";
 
 import WhatsAppStatus from "./components/WhatsAppStatus";
-import ContactList from "./components/Contactlist";
 import MessageForm from "./components/MessageForm";
 import QueueProgress from "./components/QueueProgress";
+import ExcelImport from "./components/ExcelImport";
+import NumberInput from "./components/NumberInput";
 
 function App() {
-// =========================
-// WHATSAPP
-// =========================
+  // =========================
+  // WHATSAPP
+  // =========================
 
-const {
-status,
-qr,
-connected,
-disconnecting,
-desconectar
-} = useWhatsApp();
+  const {
+    status,
+    qr,
+    connected,
+    disconnecting,
+    desconectar
+  } = useWhatsApp();
 
-// =========================
-// CONTATOS
-// =========================
+  // =========================
+  // NÚMEROS
+  // =========================
 
-const [contacts] = useState<Contact[]>([
-{
-id: 1,
-name: "Aline",
-number: "5593992216545"
-},
-{
-id: 2,
-name: "Gabriel",
-number: "5521959240257"
-},
-{
-id: 3,
-name: "Brenno",
-number: "5593991902915"
-}
-]);
+  const [numbers, setNumbers] = useState<string[]>([]);
 
-const [selectedContacts, setSelectedContacts] =
-useState<number[]>([]);
+  // =========================
+  // MENSAGEM
+  // =========================
 
-// =========================
-// MENSAGEM
-// =========================
+  const [message, setMessage] = useState("");
 
-const [message, setMessage] =
-useState("");
+  const [
+    minIntervalSeconds,
+    setMinIntervalSeconds
+  ] = useState(3);
 
-const [intervalSeconds, setIntervalSeconds] =
-useState(5);
+  const [
+    maxIntervalSeconds,
+    setMaxIntervalSeconds
+  ] = useState(8);
 
-// =========================
-// SELEÇÃO DE CONTATOS
-// =========================
+  const [
+    pauseEvery,
+    setPauseEvery
+  ] = useState(10);
 
-function toggleContact(id: number) {
-setSelectedContacts((current) => {
-if (current.includes(id)) {
-return current.filter(
-(contactId) => contactId !== id
-);
-}
+  const [
+    pauseDurationSeconds,
+    setPauseDurationSeconds
+  ] = useState(60);
 
+  // =========================
+  // FILA
+  // =========================
 
-  return [...current, id];
-});
+  const queue = useMessageQueue({
+    numbers,
+    connected,
+    message,
+    minIntervalSeconds,
+    maxIntervalSeconds,
+    pauseEvery,
+    pauseDurationSeconds
+  });
 
+  // =========================
+  // RENDER
+  // =========================
 
-}
+  return (
+    <main
+      style={{
+        maxWidth: 700,
+        margin: "40px auto",
+        padding: 20
+      }}
+    >
+      <h1>
+        Disparador WhatsApp
+      </h1>
 
-function toggleAll() {
-if (
-selectedContacts.length ===
-contacts.length
-) {
-setSelectedContacts([]);
-return;
-}
+      {/* WHATSAPP */}
 
+      <WhatsAppStatus
+        status={status}
+        qr={qr}
+        connected={connected}
+        disconnecting={disconnecting}
+        sending={queue.sending}
+        onDisconnect={desconectar}
+      />
 
-setSelectedContacts(
-  contacts.map((contact) => contact.id)
-);
+      <hr />
 
+      {/* IMPORTAR EXCEL / CSV */}
 
-}
+      <ExcelImport
+        numbers={numbers}
+        onNumbersChange={setNumbers}
+      />
 
-// =========================
-// FILA
-// =========================
+      <br />
 
-const queue = useMessageQueue({
-contacts,
-selectedContacts,
-connected,
-message,
-intervalSeconds
-});
+      {/* NÚMEROS */}
 
-// =========================
-// RENDER
-// =========================
+      <NumberInput
+        numbers={numbers}
+        disabled={queue.sending}
+        onNumbersChange={setNumbers}
+      />
 
-return (
-<main
-style={{
-maxWidth: 700,
-margin: "40px auto",
-padding: 20
-}}
-> <h1>
-Disparador WhatsApp </h1>
+      <hr />
 
-```
-  {/* WHATSAPP */}
+      {/* MENSAGEM */}
 
-  <WhatsAppStatus
-    status={status}
-    qr={qr}
-    connected={connected}
-    disconnecting={disconnecting}
-    sending={queue.sending}
-    onDisconnect={desconectar}
-  />
+      <MessageForm
+        message={message}
+        minIntervalSeconds={minIntervalSeconds}
+        maxIntervalSeconds={maxIntervalSeconds}
+        pauseEvery={pauseEvery}
+        pauseDurationSeconds={pauseDurationSeconds}
+        sending={queue.sending}
+        onMessageChange={setMessage}
+        onMinIntervalChange={
+          setMinIntervalSeconds
+        }
+        onMaxIntervalChange={
+          setMaxIntervalSeconds
+        }
+        onPauseEveryChange={
+          setPauseEvery
+        }
+        onPauseDurationChange={
+          setPauseDurationSeconds
+        }
+      />
 
-  <hr />
+      {/* PROGRESSO */}
 
-  {/* CONTATOS */}
+      <QueueProgress
+        sending={queue.sending}
+        currentIndex={queue.currentIndex}
+        total={numbers.length}
+        estimatedTotalSeconds={
+          queue.estimatedTotalSeconds
+        }
+        remainingSeconds={
+          queue.remainingSeconds
+        }
+        elapsedSeconds={
+          queue.elapsedSeconds
+        }
+        estimatedEndTime={
+          queue.estimatedEndTime
+        }
+        nextSendSeconds={
+          queue.nextSendSeconds
+        }
+        isPaused={queue.isPaused}
+        formatTime={queue.formatTime}
+        onStop={queue.pararEnvio}
+      />
 
-  <ContactList
-    contacts={contacts}
-    selectedContacts={selectedContacts}
-    contactStatus={queue.contactStatus}
-    sending={queue.sending}
-    onToggle={toggleContact}
-    onToggleAll={toggleAll}
-  />
+      {/* ENVIAR */}
 
-  <hr />
+      <button
+        type="button"
+        onClick={queue.enviarFila}
+        disabled={
+          queue.sending ||
+          !connected ||
+          numbers.length === 0
+        }
+        style={{
+          marginTop: 20
+        }}
+      >
+        {queue.sending
+          ? "Enviando..."
+          : "Enviar números"}
+      </button>
 
-  {/* MENSAGEM */}
+      {/* RESULTADO */}
 
-  <MessageForm
-    message={message}
-    intervalSeconds={intervalSeconds}
-    sending={queue.sending}
-    onMessageChange={setMessage}
-    onIntervalChange={setIntervalSeconds}
-  />
-
-  {/* PROGRESSO */}
-
-  <QueueProgress
-    sending={queue.sending}
-    currentIndex={queue.currentIndex}
-    total={selectedContacts.length}
-    onStop={queue.pararEnvio}
-  />
-
-  {/* ENVIAR */}
-
-  <button
-    type="button"
-    onClick={queue.enviarFila}
-    disabled={
-      queue.sending || !connected
-    }
-    style={{
-      marginTop: 20
-    }}
-  >
-    {queue.sending
-      ? "Enviando..."
-      : "Enviar selecionados"}
-  </button>
-
-  {/* RESULTADO */}
-
-  <p>{queue.result}</p>
-</main>
-
-
-);
+      <p>
+        {queue.result}
+      </p>
+    </main>
+  );
 }
 
 export default App;
