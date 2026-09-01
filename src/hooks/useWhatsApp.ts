@@ -22,12 +22,12 @@ setQr(qrData);
 window.whatsapp.onStatus((value) => {
   if (value === "connected") {
     setConnected(true);
-    setStatus("🟢 WhatsApp conectado");
+    setStatus("🟢 Conectado");
   }
 
   if (value === "disconnected") {
     setConnected(false);
-    setStatus("🔴 WhatsApp desconectado");
+    setStatus("🔴 Desconectado");
   }
 });
 
@@ -36,12 +36,12 @@ window.whatsapp
   .then((value) => {
     if (value === "connected") {
       setConnected(true);
-      setStatus("🟢 WhatsApp conectado");
+      setStatus("🟢 Conectado");
     }
 
     if (value === "disconnected") {
       setConnected(false);
-      setStatus("🔴 WhatsApp desconectado");
+      setStatus("🔴 Desconectado");
     }
   });
 
@@ -57,7 +57,7 @@ setDisconnecting(true);
 
   setConnected(false);
   setQr(null);
-  setStatus("🔴 WhatsApp desconectado");
+  setStatus("🔴 Desconectado");
 } catch (error) {
   console.error(
     "Erro ao desconectar:",

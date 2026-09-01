@@ -1,882 +1,951 @@
+
 import {
-useEffect,
-useRef,
-useState
+  useEffect,
+  useRef,
+  useState,
 } from "react";
 
+import type {
+  MessageModel,
+} from "../types/MessageModel";
+import type { SendResult } from "../types/sendResult";
+
 type Props = {
-numbers: string[];
-connected: boolean;
-message: string;
-minIntervalSeconds: number;
-maxIntervalSeconds: number;
-pauseEvery: number;
-pauseDurationSeconds: number;
+  numbers: string[];
+  connected: boolean;
+   message: string;
+
+  models: MessageModel[];
+  selectedModelId: string | null;
+
+  minIntervalSeconds: number;
+  maxIntervalSeconds: number;
+
+  pauseEvery: number;
+  pauseDurationSeconds: number;
 };
 
 export function useMessageQueue({
-numbers,
-connected,
-message,
-minIntervalSeconds,
-maxIntervalSeconds,
-pauseEvery,
-pauseDurationSeconds
+  numbers,
+  connected,
+  models,
+  selectedModelId,
+  minIntervalSeconds,
+  maxIntervalSeconds,
+  pauseEvery,
+  pauseDurationSeconds,
+  message,
 }: Props) {
+  const [sending, setSending] = useState(false);
 
-const [sending, setSending] =
-useState(false);
+  const [sendResults, setSendResults] = useState<SendResult[]>([]);
 
-const [currentIndex, setCurrentIndex] =
-useState(0);
+  const [currentIndex, setCurrentIndex] =
+    useState(0);
 
-const [result, setResult] =
-useState("");
+  const [result, setResult] =
+    useState("");
 
-const [remainingSeconds, setRemainingSeconds] =
-useState(0);
+  const [remainingSeconds, setRemainingSeconds] =
+    useState(0);
 
-const [elapsedSeconds, setElapsedSeconds] =
-useState(0);
+  const [elapsedSeconds, setElapsedSeconds] =
+    useState(0);
 
-const [estimatedTotalSeconds, setEstimatedTotalSeconds] =
-useState(0);
+  const [estimatedTotalSeconds, setEstimatedTotalSeconds] =
+    useState(0);
 
-const [estimatedEndTime, setEstimatedEndTime] =
-useState<Date | null>(null);
+  const [estimatedEndTime, setEstimatedEndTime] =
+    useState<Date | null>(null);
 
-const [nextSendSeconds, setNextSendSeconds] =
-useState<number | null>(null);
+  const [nextSendSeconds, setNextSendSeconds] =
+    useState<number | null>(null);
 
-const [isPaused, setIsPaused] =
-useState(false);
+  const [isPaused, setIsPaused] =
+    useState(false);
 
-const stopRequested =
-useRef(false);
+  const [currentMessage, setCurrentMessage] =
+    useState("");
 
-const timerRef =
-useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopRequested =
+    useRef(false);
 
-const startTimeRef =
-useRef<number | null>(null);
-
-const nextActionTimeRef =
-useRef<number | null>(null);
-
-// =========================
-// PARAR ENVIO
-// =========================
-
-function pararEnvio() {
-stopRequested.current = true;
-}
-
-// =========================
-// ESPERA
-// =========================
-
-function wait(milliseconds: number) {
-return new Promise<void>((resolve) => {
-setTimeout(
-resolve,
-milliseconds
-);
-});
-}
-
-// =========================
-// INTERVALO ALEATÓRIO
-// =========================
-
-function randomInterval(
-min: number,
-max: number
-) {
-return (
-Math.floor(
-Math.random() *
-(max - min + 1)
-) + min
-);
-}
-
-// =========================
-// CALCULAR QUANTIDADE
-// DE PAUSAS
-// =========================
-
-function calculatePauseCount(
-totalNumbers: number
-) {
-
-
-if (
-  totalNumbers <= 1 ||
-  pauseEvery < 1
-) {
-  return 0;
-}
-
-return Math.floor(
-  (totalNumbers - 1) /
-    pauseEvery
-);
-
-
-}
-
-// =========================
-// CALCULAR TEMPO ESTIMADO
-// =========================
-
-function calculateEstimatedTime(
-totalNumbers: number
-) {
-
-
-if (totalNumbers <= 1) {
-  return 0;
-}
-
-const min =
-  Math.max(
-    0,
-    minIntervalSeconds
-  );
-
-const max =
-  Math.max(
-    min,
-    maxIntervalSeconds
-  );
-
-// Média do intervalo aleatório
-const averageInterval =
-  (min + max) / 2;
-
-// Quantidade de intervalos
-const numberOfIntervals =
-  totalNumbers - 1;
-
-const intervalTime =
-  numberOfIntervals *
-  averageInterval;
-
-// Quantidade de pausas
-const numberOfPauses =
-  calculatePauseCount(
-    totalNumbers
-  );
-
-const pauseTime =
-  numberOfPauses *
-  Math.max(
-    0,
-    pauseDurationSeconds
-  );
-
-return Math.ceil(
-  intervalTime +
-    pauseTime
-);
-
-
-}
-
-// =========================
-// CALCULAR TEMPO RESTANTE
-// =========================
-
-function calculateRemainingTime(
-totalNumbers: number,
-sentCount: number
-) {
-
-
-const remainingNumbers =
-  totalNumbers -
-  sentCount;
-
-if (
-  remainingNumbers <= 0
-) {
-  return 0;
-}
-
-const min =
-  Math.max(
-    0,
-    minIntervalSeconds
-  );
-
-const max =
-  Math.max(
-    min,
-    maxIntervalSeconds
-  );
-
-const averageInterval =
-  (min + max) / 2;
-
-// Quantidade de intervalos
-// que ainda serão necessários
-const remainingIntervals =
-  Math.max(
-    0,
-    remainingNumbers - 1
-  );
-
-const intervalTime =
-  remainingIntervals *
-  averageInterval;
-
-// =========================
-// PAUSAS FUTURAS
-// =========================
-
-let remainingPauses = 0;
-
-if (pauseEvery > 0) {
-
-  for (
-    let nextPause =
-      Math.ceil(
-        (sentCount + 1) /
-          pauseEvery
-      ) *
-      pauseEvery;
-
-    nextPause <
-      totalNumbers;
-
-    nextPause +=
-      pauseEvery
-  ) {
-
-    if (
-      nextPause >
-      sentCount
-    ) {
-      remainingPauses++;
-    }
-  }
-}
-
-const pauseTime =
-  remainingPauses *
-  Math.max(
-    0,
-    pauseDurationSeconds
-  );
-
-return Math.ceil(
-  intervalTime +
-    pauseTime
-);
-
-
-}
-
-// =========================
-// FORMATAR TEMPO
-// =========================
-
-function formatTime(
-seconds: number
-) {
-
-
-const total =
-  Math.max(
-    0,
-    Math.ceil(seconds)
-  );
-
-const hours =
-  Math.floor(
-    total / 3600
-  );
-
-const minutes =
-  Math.floor(
-    (total % 3600) / 60
-  );
-
-const secs =
-  total % 60;
-
-if (hours > 0) {
-
-  return `${hours}h ${minutes
-    .toString()
-    .padStart(2, "0")}min`;
-}
-
-if (minutes > 0) {
-
-  return `${minutes}min ${secs
-    .toString()
-    .padStart(2, "0")}s`;
-}
-
-return `${secs}s`;
-
-
-}
-
-// =========================
-// ESTIMATIVA ANTES DO ENVIO
-// =========================
-
-useEffect(() => {
-
-
-if (
-  numbers.length === 0 ||
-  pauseEvery < 1 ||
-  minIntervalSeconds < 0 ||
-  maxIntervalSeconds < 0 ||
-  minIntervalSeconds >
-    maxIntervalSeconds ||
-  pauseDurationSeconds < 0
-) {
-
-  setEstimatedTotalSeconds(0);
-  setRemainingSeconds(0);
-  setEstimatedEndTime(null);
-
-  return;
-}
-
-const estimated =
-  calculateEstimatedTime(
-    numbers.length
-  );
-
-setEstimatedTotalSeconds(
-  estimated
-);
-
-// Só atualiza a estimativa
-// inicial quando não estiver enviando
-if (!sending) {
-
-  setRemainingSeconds(
-    estimated
-  );
-
-  setEstimatedEndTime(
-    new Date(
-      Date.now() +
-        estimated * 1000
-    )
-  );
-}
-
-
-}, [
-numbers.length,
-minIntervalSeconds,
-maxIntervalSeconds,
-pauseEvery,
-pauseDurationSeconds,
-sending
-]);
-
-// =========================
-// CONTADOR EM TEMPO REAL
-// =========================
-
-useEffect(() => {
-
-
-if (!sending) {
-
-  if (timerRef.current) {
-
-    clearInterval(
-      timerRef.current
+  const timerRef =
+    useRef<ReturnType<typeof setInterval> | null>(
+      null
     );
 
-    timerRef.current = null;
+  const startTimeRef =
+    useRef<number | null>(null);
+
+  const nextActionTimeRef =
+    useRef<number | null>(null);
+
+  // =========================
+  // PARAR ENVIO
+  // =========================
+
+  function pararEnvio() {
+    stopRequested.current = true;
+
+    /*
+     * O envio atual não é cancelado no meio.
+     * O hook para assim que terminar a operação atual.
+     */
   }
 
-  return;
+  // =========================
+  // ESPERA
+  // =========================
+
+  function wait(milliseconds: number) {
+    return new Promise<void>((resolve) => {
+      setTimeout(resolve, milliseconds);
+    });
+  }
+
+  // =========================
+  // INTERVALO ALEATÓRIO
+  // =========================
+
+  function randomInterval(
+    min: number,
+    max: number
+  ) {
+    const safeMin = Math.max(
+      0,
+      Math.floor(min)
+    );
+
+    const safeMax = Math.max(
+      safeMin,
+      Math.floor(max)
+    );
+
+    return (
+      Math.floor(
+        Math.random() *
+          (safeMax - safeMin + 1)
+      ) + safeMin
+    );
+  }
+
+
+  function getSelectedModel(): MessageModel | null {
+    if (!selectedModelId) {
+      return null;
+    }
+
+    return (
+      models.find(
+        (model) =>
+          model.id === selectedModelId
+      ) ?? null
+    );
+  }
+
+
+  // function getRandomVariant(
+  //   model: MessageModel
+  // ) {
+  //   if (
+  //     !model.variantes ||
+  //     model.variantes.length === 0
+  //   ) {
+  //     return null;
+  //   }
+
+  //   const index = Math.floor(
+  //     Math.random() *
+  //       model.variantes.length
+  //   );
+
+  //   return model.variantes[index];
+  // }
+
+
+  // function getMessageFromModel(): string {
+  //   const model =
+  //     getSelectedModel();
+
+  //   if (!model) {
+  //     return "";
+  //   }
+
+  //   const variant =
+  //     getRandomVariant(model);
+
+  //   if (!variant) {
+  //     return "";
+  //   }
+
+  //   return variant.texto.trim();
+  // }
+
+
+
+  // =========================
+  // CALCULAR TEMPO ESTIMADO
+  // =========================
+
+
+  // =========================
+// GERAR MENSAGEM DA VARIANTE
+// =========================
+
+function getMessageForIndex(index: number): string {
+  const model = getSelectedModel();
+
+  // Se existe modelo selecionado, usa as variantes
+  if (model && model.variantes.length > 0) {
+    const variantIndex =
+      index % model.variantes.length;
+
+    return model.variantes[variantIndex].texto.trim();
+  }
+
+  // Caso contrário, usa a mensagem digitada
+  return message.trim();
 }
 
-timerRef.current =
-  setInterval(() => {
+  function calculateEstimatedTime(
+    totalNumbers: number
+  ) {
+    if (totalNumbers <= 1) {
+      return 0;
+    }
 
-    const now =
-      Date.now();
+    const min = Math.max(
+      0,
+      minIntervalSeconds
+    );
 
-    // =========================
-    // TEMPO DECORRIDO
-    // =========================
+    const max = Math.max(
+      min,
+      maxIntervalSeconds
+    );
+
+    const averageInterval =
+      (min + max) / 2;
+
+    /*
+     * Aqui consideramos que entre cada envio
+     * existe um intervalo, EXCETO quando o envio
+     * anterior é múltiplo de pauseEvery.
+     *
+     * Nesse caso entra a pausa longa.
+     */
+
+    let totalTime = 0;
+
+    for (
+      let sentCount = 1;
+      sentCount < totalNumbers;
+      sentCount++
+    ) {
+      if (
+        pauseEvery > 0 &&
+        sentCount % pauseEvery === 0
+      ) {
+        totalTime += Math.max(
+          0,
+          pauseDurationSeconds
+        );
+      } else {
+        totalTime +=
+          averageInterval;
+      }
+    }
+
+    return Math.ceil(totalTime);
+  }
+
+  // =========================
+  // CALCULAR TEMPO RESTANTE
+  // =========================
+
+  function calculateRemainingTime(
+    totalNumbers: number,
+    sentCount: number
+  ) {
+    const remainingNumbers =
+      totalNumbers - sentCount;
 
     if (
-      startTimeRef.current
+      remainingNumbers <= 0
     ) {
+      return 0;
+    }
 
-      const elapsed =
-        (
-          now -
-          startTimeRef.current
-        ) / 1000;
+    const min = Math.max(
+      0,
+      minIntervalSeconds
+    );
 
-      const elapsedRounded =
-        Math.floor(
-          elapsed
+    const max = Math.max(
+      min,
+      maxIntervalSeconds
+    );
+
+    const averageInterval =
+      (min + max) / 2;
+
+    let totalTime = 0;
+
+    /*
+     * sentCount representa quantas mensagens
+     * já foram enviadas.
+     *
+     * Agora calculamos cada espera futura.
+     */
+
+    for (
+      let nextSentCount =
+        sentCount;
+      nextSentCount <
+      totalNumbers;
+      nextSentCount++
+    ) {
+      if (
+        pauseEvery > 0 &&
+        nextSentCount %
+          pauseEvery ===
+          0
+      ) {
+        totalTime += Math.max(
+          0,
+          pauseDurationSeconds
         );
+      } else {
+        totalTime +=
+          averageInterval;
+      }
+    }
 
-      setElapsedSeconds(
-        elapsedRounded
+    return Math.ceil(totalTime);
+  }
+
+  // =========================
+  // FORMATAR TEMPO
+  // =========================
+
+  function formatTime(
+    seconds: number
+  ) {
+    const total = Math.max(
+      0,
+      Math.ceil(seconds)
+    );
+
+    const hours = Math.floor(
+      total / 3600
+    );
+
+    const minutes = Math.floor(
+      (total % 3600) / 60
+    );
+
+    const secs = total % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes
+        .toString()
+        .padStart(2, "0")}min`;
+    }
+
+    if (minutes > 0) {
+      return `${minutes}min ${secs
+        .toString()
+        .padStart(2, "0")}s`;
+    }
+
+    return `${secs}s`;
+  }
+
+  // =========================
+  // ESTIMATIVA ANTES DO ENVIO
+  // =========================
+
+  useEffect(() => {
+    if (
+      numbers.length === 0 ||
+      pauseEvery < 1 ||
+      minIntervalSeconds < 0 ||
+      maxIntervalSeconds < 0 ||
+      minIntervalSeconds >
+        maxIntervalSeconds ||
+      pauseDurationSeconds < 0
+    ) {
+      setEstimatedTotalSeconds(0);
+      setRemainingSeconds(0);
+      setEstimatedEndTime(null);
+
+      return;
+    }
+
+    const estimated =
+      calculateEstimatedTime(
+        numbers.length
       );
 
-      // =========================
-      // TEMPO TOTAL RESTANTE
-      // =========================
+    setEstimatedTotalSeconds(
+      estimated
+    );
 
-      const totalEstimated =
-        estimatedTotalSeconds;
-
-      const remaining =
-        Math.max(
-          0,
-          totalEstimated -
-            elapsedRounded
-        );
-
+    if (!sending) {
       setRemainingSeconds(
-        remaining
+        estimated
       );
 
       setEstimatedEndTime(
         new Date(
-          now +
-            remaining * 1000
+          Date.now() +
+            estimated * 1000
         )
       );
     }
+  }, [
+    numbers.length,
+    minIntervalSeconds,
+    maxIntervalSeconds,
+    pauseEvery,
+    pauseDurationSeconds,
+    sending,
+  ]);
 
-    // =========================
-    // PRÓXIMO ENVIO
-    // =========================
+  // =========================
+  // CONTADOR EM TEMPO REAL
+  // =========================
 
-    if (
-      nextActionTimeRef.current
-    ) {
-
-      const remaining =
-        Math.max(
-          0,
-          Math.ceil(
-            (
-              nextActionTimeRef.current -
-              now
-            ) / 1000
-          )
+  useEffect(() => {
+    if (!sending) {
+      if (timerRef.current) {
+        clearInterval(
+          timerRef.current
         );
 
-      setNextSendSeconds(
-        remaining
-      );
+        timerRef.current = null;
+      }
+
+      return;
     }
 
-  }, 250);
+    timerRef.current =
+      setInterval(() => {
+        const now =
+          Date.now();
 
-return () => {
+        // =========================
+        // TEMPO DECORRIDO
+        // =========================
 
-  if (timerRef.current) {
+        if (
+          startTimeRef.current
+        ) {
+          const elapsed =
+            (
+              now -
+              startTimeRef.current
+            ) / 1000;
 
-    clearInterval(
-      timerRef.current
-    );
+          const elapsedRounded =
+            Math.floor(elapsed);
 
-    timerRef.current = null;
-  }
-};
+          setElapsedSeconds(
+            elapsedRounded
+          );
 
+          const totalEstimated =
+            estimatedTotalSeconds;
 
-}, [
-sending,
-estimatedTotalSeconds
-]);
+          const remaining =
+            Math.max(
+              0,
+              totalEstimated -
+                elapsedRounded
+            );
 
-// =========================
-// ESPERAR COM CONTADOR
-// =========================
+          setRemainingSeconds(
+            remaining
+          );
 
-async function esperarComContador(
-seconds: number
-) {
+          setEstimatedEndTime(
+            new Date(
+              now +
+                remaining * 1000
+            )
+          );
+        }
 
+        // =========================
+        // PRÓXIMO ENVIO
+        // =========================
 
-if (seconds <= 0) {
-  return;
-}
+        if (
+          nextActionTimeRef.current
+        ) {
+          const remaining =
+            Math.max(
+              0,
+              Math.ceil(
+                (
+                  nextActionTimeRef.current -
+                  now
+                ) / 1000
+              )
+            );
 
-const milliseconds =
-  seconds * 1000;
+          setNextSendSeconds(
+            remaining
+          );
+        }
+      }, 250);
 
-nextActionTimeRef.current =
-  Date.now() +
-  milliseconds;
+    return () => {
+      if (timerRef.current) {
+        clearInterval(
+          timerRef.current
+        );
 
-setNextSendSeconds(
-  seconds
-);
+        timerRef.current = null;
+      }
+    };
+  }, [
+    sending,
+    estimatedTotalSeconds,
+  ]);
 
-await wait(
-  milliseconds
-);
+  // =========================
+  // ESPERAR COM CONTADOR
+  // =========================
 
-nextActionTimeRef.current =
-  null;
-
-setNextSendSeconds(
-  null
-);
-
-
-}
-
-// =========================
-// ENVIAR FILA
-// =========================
-
-async function enviarFila() {
-
-
-// =========================
-// VALIDAÇÕES
-// =========================
-
-if (!connected) {
-
-  setResult(
-    "❌ WhatsApp não conectado."
-  );
-
-  return;
-}
-
-if (numbers.length === 0) {
-
-  setResult(
-    "❌ Adicione pelo menos um número."
-  );
-
-  return;
-}
-
-if (!message.trim()) {
-
-  setResult(
-    "❌ Digite uma mensagem."
-  );
-
-  return;
-}
-
-if (
-  minIntervalSeconds < 0 ||
-  maxIntervalSeconds < 0
-) {
-
-  setResult(
-    "❌ Intervalo inválido."
-  );
-
-  return;
-}
-
-if (
-  minIntervalSeconds >
-  maxIntervalSeconds
-) {
-
-  setResult(
-    "❌ O intervalo mínimo não pode ser maior que o máximo."
-  );
-
-  return;
-}
-
-if (pauseEvery < 1) {
-
-  setResult(
-    "❌ A pausa deve acontecer após pelo menos 1 envio."
-  );
-
-  return;
-}
-
-if (
-  pauseDurationSeconds < 0
-) {
-
-  setResult(
-    "❌ Duração da pausa inválida."
-  );
-
-  return;
-}
-
-// =========================
-// INICIA
-// =========================
-
-setSending(true);
-
-setResult("");
-
-setCurrentIndex(0);
-
-setElapsedSeconds(0);
-
-setRemainingSeconds(0);
-
-setNextSendSeconds(null);
-
-setIsPaused(false);
-
-stopRequested.current =
-  false;
-
-startTimeRef.current =
-  Date.now();
-
-// =========================
-// ESTIMATIVA INICIAL
-// =========================
-
-const initialEstimate =
-  calculateEstimatedTime(
-    numbers.length
-  );
-
-setEstimatedTotalSeconds(
-  initialEstimate
-);
-
-setRemainingSeconds(
-  initialEstimate
-);
-
-setEstimatedEndTime(
-  new Date(
-    Date.now() +
-      initialEstimate *
-        1000
-  )
-);
-
-// =========================
-// PROCESSA FILA
-// =========================
-
-for (
-  let index = 0;
-  index < numbers.length;
-  index++
-) {
-
-  if (
-    stopRequested.current
+  async function esperarComContador(
+    seconds: number
   ) {
-    break;
-  }
+    if (seconds <= 0) {
+      return;
+    }
 
-  const number =
-    numbers[index];
+    const milliseconds =
+      seconds * 1000;
 
-  const sentCount =
-    index + 1;
-
-  setCurrentIndex(
-    sentCount
-  );
-
-  // =========================
-  // ENVIO
-  // =========================
-
-  try {
-
-    await window.whatsapp.enviarMensagem(
-      number,
-      message
-    );
-
-    console.log(
-      `Mensagem enviada para ${number}`
-    );
-
-  } catch (error) {
-
-    console.error(
-      `Erro ao enviar para ${number}:`,
-      error
-    );
-  }
-
-  // =========================
-  // ATUALIZA ESTIMATIVA
-  // =========================
-
-  const estimatedRemaining =
-    calculateRemainingTime(
-      numbers.length,
-      sentCount
-    );
-
-  setRemainingSeconds(
-    estimatedRemaining
-  );
-
-  setEstimatedEndTime(
-    new Date(
+    nextActionTimeRef.current =
       Date.now() +
-        estimatedRemaining *
-          1000
-    )
-  );
+      milliseconds;
 
-  // =========================
-  // PARAR
-  // =========================
+    setNextSendSeconds(
+      seconds
+    );
 
-  if (
-    stopRequested.current
-  ) {
-    break;
+    await wait(
+      milliseconds
+    );
+
+    nextActionTimeRef.current =
+      null;
+
+    setNextSendSeconds(
+      null
+    );
   }
 
   // =========================
-  // PAUSA LONGA
+  // ENVIAR FILA
   // =========================
 
-  if (
-    sentCount %
-      pauseEvery ===
-      0 &&
-    sentCount <
-      numbers.length
-  ) {
+  async function enviarFila() {
+    // =========================
+    // VALIDAÇÕES
+    // =========================
 
-    setIsPaused(true);
+    if (!connected) {
+      setResult(
+        "❌ WhatsApp não conectado."
+      );
 
-    await esperarComContador(
-      pauseDurationSeconds
-    );
+      return;
+    }
+
+    if (numbers.length === 0) {
+      setResult(
+        "❌ Adicione pelo menos um número."
+      );
+
+      return;
+    }
+
+    
+    
+
+    // const selectedModel =
+    //   getSelectedModel();
+
+    // if (!selectedModel) {
+    //   setResult(
+    //     "❌ O modelo selecionado não foi encontrado."
+    //   );
+
+    //   return;
+    // }
+
+    // if (
+    //   !selectedModel.variantes ||
+    //   selectedModel.variantes.length === 0
+    // ) {
+    //   setResult(
+    //     "❌ O modelo selecionado não possui variantes."
+    //   );
+
+    //   return;
+    // }
+
+    if (
+      minIntervalSeconds < 0 ||
+      maxIntervalSeconds < 0
+    ) {
+      setResult(
+        "❌ Intervalo inválido."
+      );
+
+      return;
+    }
+
+    if (
+      minIntervalSeconds >
+      maxIntervalSeconds
+    ) {
+      setResult(
+        "❌ O intervalo mínimo não pode ser maior que o máximo."
+      );
+
+      return;
+    }
+
+    if (pauseEvery < 1) {
+      setResult(
+        "❌ A pausa deve acontecer após pelo menos 1 envio."
+      );
+
+      return;
+    }
+
+    if (
+      pauseDurationSeconds < 0
+    ) {
+      setResult(
+        "❌ Duração da pausa inválida."
+      );
+
+      return;
+    }
+
+    // =========================
+    // INICIA
+    // =========================
+
+    setSending(true);
+    setResult("");
+    setSendResults([]); 
+
+
+    setCurrentIndex(0);
+
+    setElapsedSeconds(0);
+
+    setRemainingSeconds(0);
+
+    setNextSendSeconds(null);
 
     setIsPaused(false);
 
-    if (
-      stopRequested.current
-    ) {
-      break;
-    }
-  }
+    setCurrentMessage("");
 
-  // =========================
-  // INTERVALO NORMAL
-  // =========================
+    stopRequested.current =
+      false;
 
-  else if (
-    index <
-    numbers.length - 1
-  ) {
+    startTimeRef.current =
+      Date.now();
 
-    const interval =
-      randomInterval(
-        minIntervalSeconds,
-        maxIntervalSeconds
+    // =========================
+    // ESTIMATIVA INICIAL
+    // =========================
+
+    const initialEstimate =
+      calculateEstimatedTime(
+        numbers.length
       );
 
-    console.log(
-      `Próximo envio em ${interval} segundos.`
+    setEstimatedTotalSeconds(
+      initialEstimate
     );
 
-    await esperarComContador(
-      interval
+    setRemainingSeconds(
+      initialEstimate
     );
+
+    setEstimatedEndTime(
+      new Date(
+        Date.now() +
+          initialEstimate *
+            1000
+      )
+    );
+
+    // =========================
+    // PROCESSA FILA
+    // =========================
+
+    for (
+      let index = 0;
+      index < numbers.length;
+      index++
+    ) {
+      // =========================
+      // PARAR
+      // =========================
+
+      if (
+        stopRequested.current
+      ) {
+        break;
+      }
+
+      const number =
+        numbers[index];
+
+  
+
+      // =========================
+      // ESCOLHER VARIANTE
+      // =========================
+
+      const messageToSend =
+  getMessageForIndex(index);
+
+if (!messageToSend) {
+  setResult(
+    "❌ Digite uma mensagem ou selecione um modelo."
+  );
+  break;
+}
+
+setCurrentMessage(messageToSend);
+
+      // =========================
+      // ENVIO
+      // =========================
+
+      try {
+  await window.whatsapp.enviarMensagem(
+    number,
+      messageToSend
+  );
+
+  setSendResults((prev) => [
+    ...prev,
+    {
+      number,
+      status: "success",
+      sentAt: new Date(),
+      messageToSend,
+    },
+  ]);
+
+  console.log(
+    `Mensagem enviada para ${number}`
+  );
+
+  console.log(
+    `Mensagem utilizada: ${message}`
+  );
+
+} catch (error) {
+
+  setSendResults((prev) => [
+    ...prev,
+    {
+      number,
+      status: "failed",
+      sentAt: new Date(),
+      messageToSend,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Erro desconhecido",
+    },
+  ]);
+
+  console.error(
+    `Erro ao enviar para ${number}:`,
+    error
+  );
+}
+
+    const sentCount = index + 1;
+
+      setCurrentIndex(sentCount);
+
+      // =========================
+      // ATUALIZA ESTIMATIVA
+      // =========================
+
+      const estimatedRemaining =
+        calculateRemainingTime(
+          numbers.length,
+          sentCount
+        );
+
+      setRemainingSeconds(
+        estimatedRemaining
+      );
+
+      setEstimatedEndTime(
+        new Date(
+          Date.now() +
+            estimatedRemaining *
+              1000
+        )
+      );
+
+      // =========================
+      // PARAR
+      // =========================
+
+      if (
+        stopRequested.current
+      ) {
+        break;
+      }
+
+      // =========================
+      // PAUSA LONGA
+      // =========================
+
+      if (
+        sentCount %
+          pauseEvery ===
+          0 &&
+        sentCount <
+          numbers.length
+      ) {
+        setIsPaused(true);
+
+        await esperarComContador(
+          pauseDurationSeconds
+        );
+
+        setIsPaused(false);
+
+        if (
+          stopRequested.current
+        ) {
+          break;
+        }
+      }
+
+      // =========================
+      // INTERVALO NORMAL
+      // =========================
+
+      else if (
+        index <
+        numbers.length - 1
+      ) {
+        const interval =
+          randomInterval(
+            minIntervalSeconds,
+            maxIntervalSeconds
+          );
+
+        console.log(
+          `Próximo envio em ${interval} segundos.`
+        );
+
+        await esperarComContador(
+          interval
+        );
+
+        if (
+          stopRequested.current
+        ) {
+          break;
+        }
+      }
+    }
+
+    // =========================
+    // FINALIZA
+    // =========================
+
+    setSending(false);
+
+    setIsPaused(false);
+
+    setNextSendSeconds(
+      null
+    );
+
+    startTimeRef.current =
+      null;
+
+    nextActionTimeRef.current =
+      null;
 
     if (
       stopRequested.current
     ) {
-      break;
+      setResult(
+        "⏹️ Fila interrompida."
+      );
+    } else {
+      setCurrentIndex(
+        numbers.length
+      );
+
+      setRemainingSeconds(0);
+
+      setEstimatedEndTime(
+        new Date()
+      );
+
+      setResult(
+        "✅ Fila finalizada."
+      );
     }
   }
+
+  // =========================
+  // RETORNO
+  // =========================
+
+  return {
+    sending,
+
+    currentIndex,
+
+    result,
+
+    estimatedTotalSeconds,
+
+    remainingSeconds,
+
+    elapsedSeconds,
+
+    estimatedEndTime,
+
+    nextSendSeconds,
+
+    isPaused,
+
+    currentMessage,
+
+    formatTime,
+
+    enviarFila,
+
+    pararEnvio,
+
+    sendResults,
+  };
 }
 
-// =========================
-// FINALIZA
-// =========================
-
-setSending(false);
-
-setIsPaused(false);
-
-setNextSendSeconds(null);
-
-startTimeRef.current =
-  null;
-
-nextActionTimeRef.current =
-  null;
-
-if (
-  stopRequested.current
-) {
-
-  setResult(
-    "⏹️ Fila interrompida."
-  );
-
-} else {
-
-  setCurrentIndex(
-    numbers.length
-  );
-
-  setRemainingSeconds(0);
-
-  setEstimatedEndTime(
-    new Date()
-  );
-
-  setResult(
-    "✅ Fila finalizada."
-  );
-}
-
-
-}
-
-// =========================
-// RETORNO
-// =========================
-
-return {
-sending,
-currentIndex,
-result,
-
-
-estimatedTotalSeconds,
-remainingSeconds,
-elapsedSeconds,
-estimatedEndTime,
-nextSendSeconds,
-isPaused,
-
-formatTime,
-
-enviarFila,
-pararEnvio
-
-
-};
-}
