@@ -169,10 +169,10 @@ async function connectWhatsApp() {
 }
 
 
+
 ipcMain.handle(
   "send-message",
-  async (_, { number, message }) => {
-
+  async (_, { number, message, attachment }) => {
     if (!sock) {
       throw new Error(
         "WhatsApp não conectado."
@@ -188,37 +188,125 @@ ipcMain.handle(
       );
     }
 
-    if (!message.trim()) {
+    // Precisa existir pelo menos
+    // uma mensagem OU um anexo
+    if (!message?.trim() && !attachment) {
       throw new Error(
-        "Mensagem vazia."
+        "Mensagem vazia e nenhum anexo."
       );
     }
 
-   const [result] =
-  await sock.onWhatsApp(cleanNumber);
+    // =========================
+    // VERIFICA WHATSAPP
+    // =========================
 
-if (!result?.exists) {
-  throw new Error(
-    `Número ${cleanNumber} não possui WhatsApp.`
-  );
-}
+    const [result] =
+      await sock.onWhatsApp(cleanNumber);
 
-const jid = result.jid;
+    if (!result?.exists) {
+      throw new Error(
+        `Número ${cleanNumber} não possui WhatsApp.`
+      );
+    }
+
+    const jid = result.jid;
+
     console.log(
       "ENVIANDO PARA:",
       jid
     );
 
-    await sock.sendMessage(
-      jid,
-      {
-        text: message
-      }
-    );
+    // =========================
+    // SEM ANEXO
+    // =========================
+
+    if (!attachment) {
+      await sock.sendMessage(
+        jid,
+        {
+          text: message.trim()
+        }
+      );
+
+      return true;
+    }
+
+    // =========================
+    // CONVERTE ARRAYBUFFER
+    // =========================
+
+    const buffer =
+      Buffer.from(
+        attachment.buffer
+      );
+
+    // =========================
+    // ANEXO
+    // =========================
+
+    switch (attachment.type) {
+      case "image":
+        await sock.sendMessage(
+          jid,
+          {
+            image: buffer,
+            mimetype:
+              attachment.mimetype,
+            caption:
+              message?.trim() || undefined
+          }
+        );
+        break;
+
+      case "video":
+        await sock.sendMessage(
+          jid,
+          {
+            video: buffer,
+            mimetype:
+              attachment.mimetype,
+            caption:
+              message?.trim() || undefined
+          }
+        );
+        break;
+
+      case "audio":
+        await sock.sendMessage(
+          jid,
+          {
+            audio: buffer,
+            mimetype:
+              attachment.mimetype
+          }
+        );
+        break;
+
+      case "document":
+        await sock.sendMessage(
+          jid,
+          {
+            document: buffer,
+            mimetype:
+              attachment.mimetype,
+            fileName:
+              attachment.fileName,
+            caption:
+              message?.trim() || undefined
+          }
+        );
+        break;
+
+      default:
+        throw new Error(
+          "Tipo de anexo não suportado."
+        );
+    }
 
     return true;
   }
 );
+
 
 
 

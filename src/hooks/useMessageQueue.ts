@@ -9,11 +9,13 @@ import type {
   MessageModel,
 } from "../types/MessageModel";
 import type { SendResult } from "../types/sendResult";
+import type { MessageAttachmentData } from "../types/Attachment";
 
 type Props = {
   numbers: string[];
   connected: boolean;
    message: string;
+   attachment: MessageAttachmentData | null
 
   models: MessageModel[];
   selectedModelId: string | null;
@@ -35,6 +37,7 @@ export function useMessageQueue({
   pauseEvery,
   pauseDurationSeconds,
   message,
+  attachment
 }: Props) {
   const [sending, setSending] = useState(false);
 
@@ -694,92 +697,108 @@ function getMessageForIndex(index: number): string {
     // =========================
     // PROCESSA FILA
     // =========================
+   let attachmentData:
+  | {
+      type: "image" | "video" | "audio" | "document";
+      buffer: ArrayBuffer;
+      fileName: string;
+      mimetype: string;
+    }
+  | undefined;
 
-    for (
-      let index = 0;
-      index < numbers.length;
-      index++
-    ) {
-      // =========================
-      // PARAR
-      // =========================
-
-      if (
-        stopRequested.current
-      ) {
-        break;
-      }
-
-      const number =
-        numbers[index];
-
-  
-
-      // =========================
-      // ESCOLHER VARIANTE
-      // =========================
-
-      const messageToSend =
-  getMessageForIndex(index);
-
-if (!messageToSend) {
-  setResult(
-    "❌ Digite uma mensagem ou selecione um modelo."
-  );
-  break;
+if (attachment) {
+  attachmentData = {
+    type: attachment.type,
+    buffer: await attachment.file.arrayBuffer(),
+    fileName: attachment.file.name,
+    mimetype: attachment.file.type,
+  };
 }
 
-setCurrentMessage(messageToSend);
+for (
+  let index = 0;
+  index < numbers.length;
+  index++
+) {
+  // =========================
+  // PARAR
+  // =========================
 
-      // =========================
-      // ENVIO
-      // =========================
+  if (stopRequested.current) {
+    break;
+  }
 
-      try {
-  await window.whatsapp.enviarMensagem(
-    number,
-      messageToSend
+  const number = numbers[index];
+
+  // =========================
+  // ESCOLHER VARIANTE
+  // =========================
+
+  const messageToSend =
+    getMessageForIndex(index);
+
+  // Permite texto vazio quando existe anexo
+  if (
+    !messageToSend &&
+    !attachmentData
+  ) {
+    setResult(
+      "❌ Digite uma mensagem ou selecione um anexo."
+    );
+    break;
+  }
+
+  setCurrentMessage(
+    messageToSend ?? ""
   );
 
-  setSendResults((prev) => [
-    ...prev,
-    {
+  // =========================
+  // ENVIO
+  // =========================
+
+  try {
+    await window.whatsapp.enviarMensagem(
       number,
-      status: "success",
-      sentAt: new Date(),
-      messageToSend,
-    },
-  ]);
+      messageToSend ?? "",
+      attachmentData,
+    );
 
-  console.log(
-    `Mensagem enviada para ${number}`
-  );
+    setSendResults((prev) => [
+      ...prev,
+      {
+        number,
+        status: "success",
+        sentAt: new Date(),
+        messageToSend:
+          messageToSend ?? "",
+      },
+    ]);
 
-  console.log(
-    `Mensagem utilizada: ${message}`
-  );
+    console.log(
+      `Mensagem enviada para ${number}`
+    );
 
-} catch (error) {
+  } catch (error) {
+    setSendResults((prev) => [
+      ...prev,
+      {
+        number,
+        status: "failed",
+        sentAt: new Date(),
+        messageToSend:
+          messageToSend ?? "",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erro desconhecido",
+      },
+    ]);
 
-  setSendResults((prev) => [
-    ...prev,
-    {
-      number,
-      status: "failed",
-      sentAt: new Date(),
-      messageToSend,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Erro desconhecido",
-    },
-  ]);
-
-  console.error(
-    `Erro ao enviar para ${number}:`,
-    error
-  );
-}
+    console.error(
+      `Erro ao enviar para ${number}:`,
+      error
+    );
+  }
 
     const sentCount = index + 1;
 
@@ -946,6 +965,7 @@ setCurrentMessage(messageToSend);
     pararEnvio,
 
     sendResults,
+
   };
 }
 

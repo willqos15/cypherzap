@@ -15,36 +15,29 @@ import { Toaster } from "sonner";
 import { SendSettings } from "./_components/SendSettings";
 import { Send } from "lucide-react";
 import { Button } from "#components/ui/button";
+import type { MessageAttachmentData } from "../../types/Attachment";
+
 
 interface InterfacePageMain {
   setSending: React.Dispatch<React.SetStateAction<boolean>>;
 }
 export default function PageMain({setSending}:InterfacePageMain) {
-  // =========================
-  // WHATSAPP
-  // =========================
-
-  
-
+ 
   const {
     connected,
     disconnecting,
   } = useWhatsApp();
 
-  // =========================
-  // NÚMEROS
-  // =========================
-
   const [numbers, setNumbers] = useState<string[]>([]);
   const [message, setMessage] = useState("");
 
-  // =========================
-  // MODELOS DE MENSAGEM
-  // =========================
 
   const [models, setModels] = useState<MessageModel[]>(
     []
   );
+
+   const [attachment, setAttachment] =
+  useState<MessageAttachmentData | null>(null);
 
   const [selectedModelId, setSelectedModelId] =
     useState<string | null>(null);
@@ -77,9 +70,6 @@ export default function PageMain({setSending}:InterfacePageMain) {
     setPauseDurationSeconds,
   ] = useState(60);
 
-  // =========================
-  // FILA DE ENVIO
-  // =========================
 
   const queue = useMessageQueue({
     numbers,
@@ -90,7 +80,8 @@ export default function PageMain({setSending}:InterfacePageMain) {
     maxIntervalSeconds,
     pauseEvery,
     pauseDurationSeconds,
-    message
+    message,
+    attachment,
   });
 
   useEffect(() => {
@@ -135,7 +126,11 @@ export default function PageMain({setSending}:InterfacePageMain) {
         sending={queue.sending}
         onModelsChange={setModels}
         onModelSelect={setSelectedModelId}
+        attachment={attachment}
+        onAttachmentChange={setAttachment}
       />
+
+     
 
       </section>
 
@@ -184,7 +179,7 @@ export default function PageMain({setSending}:InterfacePageMain) {
           queue.sending ||
           !connected ||
           numbers.length === 0 ||
-          message.trim().length <=0
+          (message.trim().length <= 0 && !attachment)
         }
       >
         {queue.sending

@@ -16,6 +16,7 @@ export default function MessageVariantTextarea({
   disabled = false,
 }: Props) {
   const [variantIndex, setVariantIndex] = useState(0);
+ 
 
   useEffect(() => {
     setVariantIndex(0);
@@ -58,8 +59,10 @@ export default function MessageVariantTextarea({
   );
 
   return (
-    <div className="w-full">
+    <div className="w-fulL">
       {/* Cabeçalho */}
+
+      {canNavigate && 
       <div className="flex items-center justify-between mb-1">
         <div className="w-10">
           <button
@@ -89,6 +92,7 @@ export default function MessageVariantTextarea({
           </button>
         </div>
       </div>
+      }
 
       {/* Textarea */}
       <textarea
@@ -101,6 +105,7 @@ export default function MessageVariantTextarea({
         placeholder="Digite sua mensagem."
         rows={6}
       />
+      
     </div>
   );
 }

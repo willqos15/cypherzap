@@ -20,7 +20,17 @@ declare global {
 
       enviarMensagem(
         number: string,
-        message: string
+        message: string,
+        attachment?: {
+    type:
+      | "image"
+      | "video"
+      | "audio"
+      | "document";
+    buffer: ArrayBuffer;
+    fileName: string;
+    mimetype: string;
+  }
       ): Promise<boolean>;
 
       desconectar(): Promise<boolean>;

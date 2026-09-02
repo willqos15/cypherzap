@@ -20,12 +20,13 @@ contextBridge.exposeInMainWorld("whatsapp", {
     );
   },
 
-  enviarMensagem: (number, message) => {
+  enviarMensagem: (number, message,  attachment) => {
     return ipcRenderer.invoke(
       "send-message",
       {
         number,
-        message
+        message,
+        attachment
       }
     );
   },
