@@ -24,6 +24,8 @@ export function SendSettings({
     setPauseEvery,
     setPauseDurationSeconds,
 }: SendSettingsProps) {
+
+    
     return (
         <>
             <section className=" bg-white p-4">
@@ -95,19 +97,18 @@ export function SendSettings({
                         </div>
 
                         <div className="flex gap-2 items-center">
-
-
-                            <span>Duração da pausa (segundos)</span>
+                            <span>Duração da pausa (minutos)</span>
 
                             <Input
                                 className="mt-1 block w-20 box-border"
                                 type="number"
-                                min={0}
-                                value={pauseDurationSeconds}
+                                min={1}
+                                value={pauseDurationSeconds / 60}
                                 disabled={sending}
-                                onChange={(event) =>
-                                    setPauseDurationSeconds(Number(event.target.value))
-                                }
+                                onChange={(event) => {
+                                    const minutos = Number(event.target.value);
+                                    setPauseDurationSeconds(minutos * 60);
+                                }}
                             />
                         </div>
 

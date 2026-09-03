@@ -52,10 +52,10 @@ export default function QueueProgress({
 
   const endTime = estimatedEndTime
     ? estimatedEndTime.toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      })
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
     : "--:--:--";
 
   const successCount = sendResults.filter(
@@ -98,7 +98,7 @@ export default function QueueProgress({
             📊 {total} números na fila
           </p>
 
-           <p>
+          <p>
             ⏱️ Tempo estimado:{" "}
             <strong>
               {formatTime(estimatedTotalSeconds)}
@@ -160,14 +160,21 @@ export default function QueueProgress({
 
           {isPaused && (
             <p>
-              ⏸️ Pausa automática
+              ⏸️ Pausa automática — próximo envio em{" "}
+              <strong>
+                {nextSendSeconds !== null
+                  ? formatTime(nextSendSeconds)
+                  : "--"}
+              </strong>
             </p>
           )}
 
           {!isPaused && nextSendSeconds !== null && (
             <p>
               📤 Próximo envio em{" "}
-              <strong>{nextSendSeconds}s</strong>
+              <strong>
+                {formatTime(nextSendSeconds)}
+              </strong>
             </p>
           )}
 
