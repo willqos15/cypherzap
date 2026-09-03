@@ -12,10 +12,11 @@ type SendResult = {
 
 type ExportReportButtonProps = {
     results: SendResult[];
+    className: string;
 };
 
 export default function ExportReportButton({
-    results,
+    results, className
 }: ExportReportButtonProps) {
     const exportReport = () => {
         if (results.length === 0) {
@@ -134,7 +135,7 @@ export default function ExportReportButton({
             type="button"
             onClick={exportReport}
             variant="secondary"
-            className="font-bold"
+            className={`font-bold ${className}`}
         >
 
             <FileChartColumnIncreasing />

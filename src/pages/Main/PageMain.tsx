@@ -97,7 +97,7 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
       <Toaster />
       <main className="relative w-full my-10 mx-auto px-10">
 
-        <div className= {`${!connected || disconnecting || !autorizado && "pointer-events-none opacity-50"}`}>
+        <div className= {`${(!connected || disconnecting || !autorizado) && "pointer-events-none opacity-50"}`}>
 
           <section className={`${styleSection}`}>
             <ExcelImportNumber
@@ -179,6 +179,8 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
             ? "Enviando..."
             : <> <Send /> Enviar mensagens</>}
         </Button>
+
+        
 
 
 

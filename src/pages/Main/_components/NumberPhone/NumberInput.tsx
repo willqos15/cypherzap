@@ -1,4 +1,4 @@
-import { normalizePhone } from "#lib/utils";
+import { formatNumber, normalizePhone } from "#lib/utils";
 import { useRef, useState } from "react";
 
 type Props = {
@@ -18,39 +18,7 @@ export default function NumberInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   
-  function formatNumber(value: string): string {
-    const clean = value.replace(/\D/g, "");
 
-    /**
-     * Celular:
-     * +55 (93) 99187-8598
-     */
-    if (clean.length === 13) {
-      return `+55 (${clean.slice(
-        2,
-        4
-      )}) ${clean.slice(
-        4,
-        9
-      )}-${clean.slice(9)}`;
-    }
-
-    /**
-     * Fixo:
-     * +55 (93) 9918-7859
-     */
-    if (clean.length === 12) {
-      return `+55 (${clean.slice(
-        2,
-        4
-      )}) ${clean.slice(
-        4,
-        8
-      )}-${clean.slice(8)}`;
-    }
-
-    return value;
-  }
 
   function addNumbers(value: string) {
     setError("");

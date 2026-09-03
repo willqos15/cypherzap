@@ -1,5 +1,8 @@
 import { LogOut } from "lucide-react";
 import { Button } from "../../../components/ui/button";
+import LicenseDialog from "#components/LicenseDialog";
+import { useEffect, useState } from "react";
+import type { Licenca } from "../../../types/Licensa";
 
 type Props = {
   status: string;
@@ -7,14 +10,61 @@ type Props = {
   connected: boolean;
   disconnecting: boolean;
   sending: boolean;
-  autorizado: boolean;
   onDisconnect: () => void;
+  setAutorizado: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export default function WhatsAppStatus({
   status, qr, connected, disconnecting,
-  sending, onDisconnect, autorizado
+  sending, onDisconnect, setAutorizado
 }: Props) {
+
+
+    const [licenca, setLicenca] = useState<Licenca | null>(null);
+
+useEffect(() => {
+  let ativo = true;
+
+  window.whatsapp
+    .getLicense()
+    .then((license) => {
+      if (!ativo) return;
+
+      console.log(
+        "LICENÇA RECUPERADA:",
+        license
+      );
+
+      setLicenca(license);
+      setAutorizado(
+        license?.autorizado ?? false
+      );
+    });
+
+
+
+  const unsubscribe =
+    window.whatsapp.onLicense(
+      (license) => {
+        console.log(
+          "LICENÇA RECEBIDA:",
+          license
+        );
+
+        if (!ativo) return;
+
+        setLicenca(license);
+        setAutorizado(
+          license?.autorizado ?? false
+        );
+      }
+    );
+
+  return () => {
+    ativo = false;
+    unsubscribe?.();
+  };
+}, []);
 
  
 
@@ -45,9 +95,7 @@ export default function WhatsAppStatus({
               </Button>
 
 
-              <p>{autorizado ?
-              'Licensa Ativaa' : 'Licensa Desativada'}
-              </p>
+              <LicenseDialog licenca={licenca}/>
             </>
           )}
 

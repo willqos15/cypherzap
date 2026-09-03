@@ -689,10 +689,16 @@ ipcMain.handle(
 
 ipcMain.handle(
   "get-whatsapp-license",
-  () => {
-    return licencaAtual
-      ? { ...licencaAtual }
-      : null;
+  async () => {
+    if (!sock?.user?.id) {
+      return null;
+    }
+
+    const numero = sock.user.id
+      .split(":")[0]
+      .replace(/\D/g, "");
+
+    return await atualizarLicenca(numero);
   }
 );
 

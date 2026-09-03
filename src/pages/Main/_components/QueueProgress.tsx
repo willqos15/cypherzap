@@ -35,9 +35,10 @@ export default function QueueProgress({
   onStop,
   sendResults,
 }: Props) {
-  if (total === 0) {
-    return null;
-  }
+
+   if (total === 0) {
+     return null;
+   }
 
   // Quantidade de mensagens já processadas.
   const processed = Math.min(
@@ -68,7 +69,8 @@ export default function QueueProgress({
 
   return (
     <section className="mt-5 rounded-lg border border-gray-300 p-3.75">
-      <h2 className="mb-3 text-xl font-semibold">
+
+        <h2 className="mb-3 text-xl font-semibold">
         Progresso
       </h2>
 
@@ -81,16 +83,31 @@ export default function QueueProgress({
 
           <strong>{progress}%</strong>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="h-2.5 w-full overflow-hidden rounded-[5px] bg-gray-200">
+            <div
+              className="h-full rounded-[5px] bg-green-600 transition-all duration-300 ease-out"
+              style={{
+                width: `${progress}%`,
+              }}
+            />
+          </div>
 
-        <div className="h-2.5 w-full overflow-hidden rounded-[5px] bg-gray-200">
-          <div
-            className="h-full rounded-[5px] bg-green-600 transition-all duration-300 ease-out"
-            style={{
-              width: `${progress}%`,
-            }}
-          />
+          <Button
+            variant="secondary"
+            onClick={onStop}
+            className="font-bold"
+            disabled={!sending}
+          >
+            <Pause /> Parar
+          </Button>
+
+
         </div>
       </div>
+
+
+
 
       {!sending ? (
         <>
@@ -104,6 +121,7 @@ export default function QueueProgress({
               {formatTime(estimatedTotalSeconds)}
             </strong>
           </p>
+
 
 
           {sendResults.length > 0 && (
@@ -120,7 +138,7 @@ export default function QueueProgress({
                 falharam
               </p>
 
-              <ExportReportButton results={sendResults} />
+
             </>
           )}
         </>
@@ -158,6 +176,8 @@ export default function QueueProgress({
             <strong>{endTime}</strong>
           </p>
 
+
+
           {isPaused && (
             <p>
               ⏸️ Pausa automática — próximo envio em{" "}
@@ -168,6 +188,9 @@ export default function QueueProgress({
               </strong>
             </p>
           )}
+
+
+
 
           {!isPaused && nextSendSeconds !== null && (
             <p>
@@ -187,6 +210,10 @@ export default function QueueProgress({
           </Button>
         </>
       )}
+
+      {sendResults.length > 0 && 
+        <ExportReportButton results={sendResults} className='mt-2 w-full' />
+      }
     </section>
   );
 }
