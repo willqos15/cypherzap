@@ -135,7 +135,9 @@ export default function MessageComposer({
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="flex gap-2"> <MessageCircle /> Texto da Mensagem</h2>
+      <h2 className="flex gap-2"> <MessageCircle /> 
+      Texto da Mensagem
+      </h2>
 
       <div className="flex gap-4">
 

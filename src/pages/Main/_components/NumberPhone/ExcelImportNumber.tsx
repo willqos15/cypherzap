@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { Button } from "../../../../components/ui/button";
-import { Contact } from "lucide-react";
+import { Contact, X } from "lucide-react";
 import { normalizePhone } from "#lib/utils";
 
 type ExcelImportProps = {
@@ -16,6 +16,7 @@ export default function ExcelImportNumber({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importedNumbers, setImportedNumbers] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -120,7 +121,7 @@ export default function ExcelImportNumber({
         numbers
           .map((number) =>
             normalizePhone(number)
-      
+
           )
           .filter(Boolean)
       );
@@ -236,8 +237,8 @@ export default function ExcelImportNumber({
       if (importedNumbers.length === 0) {
         setResult(
           `⚠️ Nenhum novo número encontrado. ` +
-            `Duplicados: ${duplicates}. ` +
-            `Inválidos: ${invalid}.`
+          `Duplicados: ${duplicates}. ` +
+          `Inválidos: ${invalid}.`
         );
 
         return;
@@ -254,18 +255,18 @@ export default function ExcelImportNumber({
         ...importedNumbers,
       ]);
 
+      setImportedNumbers(importedNumbers);
+
       setResult(
-        `${importedNumbers.length} número${
-          importedNumbers.length !== 1
-            ? "s"
-            : ""
-        } importado${
-          importedNumbers.length !== 1
-            ? "s"
-            : ""
+        `${importedNumbers.length} número${importedNumbers.length !== 1
+          ? "s"
+          : ""
+        } importado${importedNumbers.length !== 1
+          ? "s"
+          : ""
         }. ` +
-          `Duplicados: ${duplicates}. ` +
-          `Inválidos: ${invalid}.`
+        `Duplicados: ${duplicates}. ` +
+        `Inválidos: ${invalid}.`
       );
     } catch (error) {
       console.error(
@@ -287,10 +288,35 @@ export default function ExcelImportNumber({
     }
   }
 
-  return (
-    <section className="flex items-center">
 
-        <input
+
+
+  function handleCancelImport() {
+    if (importedNumbers.length === 0) {
+      return;
+    }
+
+    const importedSet = new Set(importedNumbers);
+
+    const remainingNumbers = numbers.filter(
+      (number) => !importedSet.has(normalizePhone(number))
+    );
+
+    onNumbersChange(remainingNumbers);
+
+    setImportedNumbers([]);
+    setSelectedFile(null);
+    setResult("Importação cancelada.");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <section className="flex items-center gap-2">
+
+      <input
         className="hidden"
         ref={fileInputRef}
         type="file"
@@ -315,6 +341,16 @@ export default function ExcelImportNumber({
           : "Importar Lista de Números"}
       </Button>
 
+      {selectedFile && importedNumbers.length > 0 && (
+        <Button
+          variant="delete"
+          type="button"
+          onClick={handleCancelImport}
+          disabled={loading}>
+          <X />
+        </Button>
+      )}
+
       {loading && (
         <p className="px-1 text-gray-700 text-sm">
           Importando números...
@@ -326,6 +362,9 @@ export default function ExcelImportNumber({
           {result}
         </p>
       )}
+
+
+
     </section>
   );
 }

@@ -11,14 +11,23 @@ contextBridge.exposeInMainWorld("whatsapp", {
     });
   },
 
-  onStatus: (callback) => {
-    ipcRenderer.on(
+ onStatus: (callback) => {
+  const listener = (_event, status) => {
+    callback(status);
+  };
+
+  ipcRenderer.on(
+    "whatsapp-status",
+    listener
+  );
+
+  return () => {
+    ipcRenderer.removeListener(
       "whatsapp-status",
-      (_, status) => {
-        callback(status);
-      }
+      listener
     );
-  },
+  };
+},
 
   enviarMensagem: (number, message,  attachment) => {
     return ipcRenderer.invoke(
@@ -42,5 +51,54 @@ contextBridge.exposeInMainWorld("whatsapp", {
     "get-whatsapp-status"
   );
 },
+
+
+onLicense: (callback) => {
+    const listener = (_event, license) => {
+      callback(license);
+    };
+
+    ipcRenderer.on(
+      "whatsapp-license",
+      listener
+    );
+
+    return () => {
+      ipcRenderer.removeListener(
+        "whatsapp-license",
+        listener
+      );
+    };
+  },
+
+
+  getLicense: () => {
+  return ipcRenderer.invoke(
+    "get-whatsapp-license"
+  );
+},
+
+
+
+    onLicense: (callback) => {
+      const listener = (_event, license) => {
+        callback(license);
+      };
+
+      ipcRenderer.on(
+        "whatsapp-license",
+        listener
+      );
+
+      // Permite remover esse listener depois
+      return () => {
+        ipcRenderer.removeListener(
+          "whatsapp-license",
+          listener
+        );
+      };
+    },
+
+
 
 });

@@ -69,7 +69,6 @@ export default function MessageVariantTextarea({
             type="button"
             onClick={handlePrevious}
             disabled={disabled || !canNavigate}
-            className={!canNavigate ? "invisible" : ""}
           >
             <ChevronLeft size={20} />
           </button>
@@ -86,7 +85,6 @@ export default function MessageVariantTextarea({
             type="button"
             onClick={handleNext}
             disabled={disabled || !canNavigate}
-            className={!canNavigate ? "invisible" : ""}
           >
             <ChevronRight size={20} />
           </button>

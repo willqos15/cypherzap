@@ -522,9 +522,7 @@ function getMessageForIndex(index: number): string {
   // ESPERAR COM CONTADOR
   // =========================
 
-  async function esperarComContador(
-    seconds: number
-  ) {
+  async function esperarComContador(seconds: number) {
     if (seconds <= 0) {
       return;
     }
@@ -728,6 +726,16 @@ for (
     break;
   }
 
+   if (!connected) {
+    setResult(
+      "⚠️ WhatsApp desconectado. Fila pausada."
+    );
+
+    setIsPaused(true);
+
+    break;
+  }
+
   const number = numbers[index];
 
   // =========================
@@ -860,6 +868,14 @@ for (
         ) {
           break;
         }
+
+        if (!connected) {
+  setResult(
+    "⚠️ WhatsApp desconectado. Fila pausada.")
+    setIsPaused(true);
+    break;
+  ;}
+
       }
 
       // =========================
@@ -889,6 +905,9 @@ for (
         ) {
           break;
         }
+
+        
+
       }
     }
 

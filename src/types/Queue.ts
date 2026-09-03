@@ -14,3 +14,11 @@ export type QueueSettings = {
   pauseEvery: number;
   pauseDurationSeconds: number;
 };
+
+  export type WhatsAppStatus = {
+  conectado: boolean;
+  autorizado: boolean;
+  numero?: string;
+  validade?: string;
+  motivo?: string;
+};
