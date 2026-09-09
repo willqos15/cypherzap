@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useWhatsApp } from "../../hooks/useWhatsApp";
+
 import { useMessageQueue } from "../../hooks/useMessageQueue";
 
 
@@ -16,6 +16,7 @@ import { SendSettings } from "./_components/SendSettings";
 import { Send } from "lucide-react";
 import { Button } from "#components/ui/button";
 import type { MessageAttachmentData } from "../../types/Attachment";
+import { useWhatsApp } from "../../context/WhatsAppContext";
 
 
 interface InterfacePageMain {

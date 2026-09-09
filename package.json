@@ -3,11 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "commonjs",
+    "main": "electron/main.cjs",
   "scripts": {
     "lint": "eslint .",
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electronmon electron/main.cjs\"",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -55,5 +57,23 @@
     "#components/*": "./src/components/*.tsx",
     "#lib/*": "./src/lib/*.ts",
     "#hooks/*": "./src/hooks/*.ts"
+  },
+  "build": {
+    "appId": "com.cypherzap",
+    "productName": "CypherZap",
+
+    "directories": {
+      "output": "release"
+    },
+
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+
+    "win": {
+      "target": "nsis"
+    }
   }
+
 }

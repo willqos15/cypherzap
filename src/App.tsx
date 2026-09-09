@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import WhatsAppStatus from "./pages/Main/_components/WhatsAppStatus";
 import PageMain from "./pages/Main/PageMain";
+import { WhatsAppProvider } from "./context/WhatsAppContext";
 
 
 function App() {
@@ -13,21 +14,15 @@ function App() {
   const {
     status,
     qr,
-    connected,
-    disconnecting,
-    desconectar,
   } = useWhatsApp();
 
   return (
-    <>
+    <WhatsAppProvider>
 
       <WhatsAppStatus
         status={status}
         qr={qr}
-        connected={connected}
-        disconnecting={disconnecting}
         sending={sending}
-        onDisconnect={desconectar}
         setAutorizado={setAutorizado}
       />
 
@@ -37,7 +32,8 @@ function App() {
           autorizado={autorizado}
         />
       </div>
-    </>
+    
+    </WhatsAppProvider>
   );
 }
 

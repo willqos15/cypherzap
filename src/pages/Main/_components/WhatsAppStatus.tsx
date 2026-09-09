@@ -3,22 +3,25 @@ import { Button } from "../../../components/ui/button";
 import LicenseDialog from "#components/LicenseDialog";
 import { useEffect, useState } from "react";
 import type { Licenca } from "../../../types/Licensa";
+import { useWhatsApp } from "../../../context/WhatsAppContext";
+
 
 type Props = {
   status: string;
   qr: string | null;
-  connected: boolean;
-  disconnecting: boolean;
   sending: boolean;
-  onDisconnect: () => void;
   setAutorizado: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export default function WhatsAppStatus({
-  status, qr, connected, disconnecting,
-  sending, onDisconnect, setAutorizado
+  status, qr,
+  sending, setAutorizado
 }: Props) {
 
+  const {
+      connected,
+      disconnecting,desconectar,
+    } = useWhatsApp();
 
     const [licenca, setLicenca] = useState<Licenca | null>(null);
 
@@ -85,7 +88,7 @@ useEffect(() => {
             <>
               <Button
                 variant="delete"
-                onClick={onDisconnect}
+                onClick={desconectar}
                 disabled={disconnecting || sending}
               >
                 <LogOut />
@@ -106,15 +109,12 @@ useEffect(() => {
 
       </section>
 
+      {!qr && !connected && <p className="flex justify-center p-4">
+        Carregando... </p>}
 
+    
 
-      {!connected && !qr &&
-        <div className="flex justify-center p-4 mt-5">
-          <p className="font-bold">Aguarde! Gerando QR Code...</p>
-        </div>
-      }
-
-      {qr && (
+      {qr && !connected &&  (
         <div className="flex flex-col items-center justify-center bg-white p-4 gap-4 mt-5">
           <p className="font-bold">Escaneie o QR Code:</p>
 

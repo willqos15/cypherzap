@@ -6,10 +6,19 @@ const {
 contextBridge.exposeInMainWorld("whatsapp", {
 
   onQR: (callback) => {
-    ipcRenderer.on("whatsapp-qr", (_, qr) => {
-      callback(qr);
-    });
-  },
+  const listener = (_, qr) => {
+    callback(qr);
+  };
+
+  ipcRenderer.on("whatsapp-qr", listener);
+
+  return () => {
+    ipcRenderer.removeListener(
+      "whatsapp-qr",
+      listener
+    );
+  };
+},
 
  onStatus: (callback) => {
   const listener = (_event, status) => {
@@ -53,24 +62,6 @@ contextBridge.exposeInMainWorld("whatsapp", {
 },
 
 
-onLicense: (callback) => {
-    const listener = (_event, license) => {
-      callback(license);
-    };
-
-    ipcRenderer.on(
-      "whatsapp-license",
-      listener
-    );
-
-    return () => {
-      ipcRenderer.removeListener(
-        "whatsapp-license",
-        listener
-      );
-    };
-  },
-
 
   getLicense: () => {
   return ipcRenderer.invoke(
@@ -90,7 +81,7 @@ onLicense: (callback) => {
         listener
       );
 
-      // Permite remover esse listener depois
+   
       return () => {
         ipcRenderer.removeListener(
           "whatsapp-license",
