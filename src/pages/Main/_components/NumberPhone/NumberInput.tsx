@@ -14,31 +14,23 @@ export default function NumberInput({
 }: Props) {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
-
   const inputRef = useRef<HTMLInputElement>(null);
-
-  
-
 
   function addNumbers(value: string) {
     setError("");
 
-    const values = value
-      .split(/[\n,]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+    const values =
+      value.match(
+        /(?:\+?55\s*)?(?:\(?\d{2}\)?[\s-]*)?(?:9[\s-]*)?\d{4}[\s-]*\d{4}/g
+      ) ?? [];
 
     if (values.length === 0) {
       return;
     }
 
     const normalizedNumbers: string[] = [];
-
     let invalidCount = 0;
 
-    /**
-     * Normaliza e valida os números recebidos.
-     */
     for (const value of values) {
       const normalized = normalizePhone(value);
 
@@ -50,9 +42,6 @@ export default function NumberInput({
       normalizedNumbers.push(normalized);
     }
 
-    /**
-     * Mostra erro para números inválidos.
-     */
     if (invalidCount > 0) {
       setError(
         `${invalidCount} número${
@@ -63,36 +52,20 @@ export default function NumberInput({
       );
     }
 
-    /**
-     * Normaliza os números existentes
-     * para comparar corretamente.
-     */
     const existingNumbers = new Set(
       numbers
-        .map((number) =>
-          normalizePhone(number)
-        )
+        .map((number) => normalizePhone(number))
         .filter(Boolean)
     );
 
-    /**
-     * Evita duplicados na própria entrada.
-     */
     const addedNumbers = new Set<string>();
-
     const uniqueNumbers: string[] = [];
 
     for (const number of normalizedNumbers) {
-      /**
-       * Já existe na lista.
-       */
       if (existingNumbers.has(number)) {
         continue;
       }
 
-      /**
-       * Já foi colocado nessa entrada.
-       */
       if (addedNumbers.has(number)) {
         continue;
       }
@@ -119,9 +92,7 @@ export default function NumberInput({
       event.key === ","
     ) {
       event.preventDefault();
-
       addNumbers(input);
-
       return;
     }
 
@@ -150,6 +121,22 @@ export default function NumberInput({
 
     if (error) {
       setError("");
+    }
+  }
+
+  function handlePaste(
+    event: React.ClipboardEvent<HTMLInputElement>
+  ) {
+    const pastedText =
+      event.clipboardData.getData("text");
+
+    const phoneMatches = pastedText.match(
+      /(?:\+?55\s*)?(?:\(?\d{2}\)?[\s-]*)?(?:9[\s-]*)?\d{4}[\s-]*\d{4}/g
+    );
+
+    if (phoneMatches && phoneMatches.length > 0) {
+      event.preventDefault();
+      addNumbers(pastedText);
     }
   }
 
@@ -220,6 +207,7 @@ export default function NumberInput({
           disabled={disabled}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={
             numbers.length === 0
               ? "Digite um número e pressione Enter ou Vírgula..."

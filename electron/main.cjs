@@ -6,6 +6,8 @@ const {
 
 const path = require("path");
 
+
+
 const makeWASocket =
   require("@whiskeysockets/baileys").default;
 
@@ -22,6 +24,8 @@ let mainWindow = null;
 let sock = null;
 let whatsappStatus = "connecting";
 let licencaAtual = null;
+let reconnectTimeout = null;
+let manualLogout = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -46,6 +50,22 @@ function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+}
+
+
+function scheduleReconnect(delay) {
+  if (reconnectTimeout) {
+    return;
+  }
+
+  reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = null;
+    manualLogout = false;
+
+    if (!sock) {
+      connectWhatsApp();
+    }
+  }, delay);
 }
 
 
@@ -349,7 +369,7 @@ async function connectWhatsApp() {
     "auth"
   );
 
- 
+
 
 
   const { state, saveCreds } =
@@ -379,8 +399,8 @@ async function connectWhatsApp() {
       } = update;
 
 
-        console.log("CONNECTION UPDATE COMPLETO:");
-    console.log(update);
+      console.log("CONNECTION UPDATE COMPLETO:");
+      console.log(update);
 
       console.log(
         "CONNECTION UPDATE:",
@@ -390,7 +410,7 @@ async function connectWhatsApp() {
         }
       );
 
-      
+
 
       // =========================
       // QR CODE
@@ -398,7 +418,7 @@ async function connectWhatsApp() {
 
       if (qr) {
         console.log("QR CODE RECEBIDO");
-        
+
 
         const qrDataUrl = await QRCode.toDataURL(qr);
 
@@ -419,8 +439,8 @@ async function connectWhatsApp() {
       if (connection === "open") {
         console.log("WHATSAPP CONECTADO");
         console.log("==========");
-  console.log("BAILEYS: CONECTOU");
-  console.log("==========");
+        console.log("BAILEYS: CONECTOU");
+        console.log("==========");
 
         whatsappStatus = "connected";
 
@@ -450,83 +470,83 @@ async function connectWhatsApp() {
       // DESCONECTADO
       // =========================
 
-     if (connection === "close") {
-    whatsappStatus = "disconnected";
+      if (connection === "close") {
+        whatsappStatus = "disconnected";
 
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(
             "whatsapp-status",
             "disconnected"
-        );
+          );
 
-        mainWindow.webContents.send(
+          mainWindow.webContents.send(
             "whatsapp-qr",
             null
-        );
-    }
-
-    const code =
-        lastDisconnect?.error?.output?.statusCode;
-
-    console.log(
-        "WHATSAPP DESCONECTADO:",
-        code
-    );
-
-    sock = null;
-
-    // =========================
-    // SESSÃO INVÁLIDA
-    // =========================
-
-    if (code === DisconnectReason.loggedOut) {
-        console.log(
-            "Sessão inválida. Removendo autenticação..."
-        );
-
-        const authPath = path.join(
-            app.getPath("userData"),
-            "auth"
-        );
-
-        try {
-            if (fs.existsSync(authPath)) {
-                fs.rmSync(authPath, {
-                    recursive: true,
-                    force: true
-                });
-
-                console.log(
-                    "AUTH removido."
-                );
-            }
-        } catch (error) {
-            console.error(
-                "Erro ao remover AUTH:",
-                error
-            );
+          );
         }
 
-        // Inicia uma sessão limpa
-        setTimeout(() => {
-            connectWhatsApp();
-        }, 1000);
+        const code =
+          lastDisconnect?.error?.output?.statusCode;
 
-        return;
-    }
+        console.log(
+          "WHATSAPP DESCONECTADO:",
+          code
+        );
 
-    // =========================
-    // OUTROS ERROS
-    // =========================
+        sock = null;
+        if (manualLogout) {
+          return;
+        }
+        licencaAtual = null;
 
-    console.log(
-        "Tentando reconectar em 3 segundos..."
-    );
+        // =========================
+        // SESSÃO INVÁLIDA
+        // =========================
 
-    setTimeout(() => {
-        connectWhatsApp();
-    }, 3000);
-}
+        if (code === DisconnectReason.loggedOut) {
+          console.log(
+            "Sessão inválida. Removendo autenticação..."
+          );
+
+          const authPath = path.join(
+            app.getPath("userData"),
+            "auth"
+          );
+
+          try {
+            if (fs.existsSync(authPath)) {
+              fs.rmSync(authPath, {
+                recursive: true,
+                force: true
+              });
+
+              console.log(
+                "AUTH removido."
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Erro ao remover AUTH:",
+              error
+            );
+          }
+
+          // Inicia uma sessão limpa
+          scheduleReconnect(1000);
+
+          return;
+        }
+
+        // =========================
+        // OUTROS ERROS
+        // =========================
+
+        console.log(
+          "Tentando reconectar em 3 segundos..."
+        );
+
+        scheduleReconnect(3000);
+      }
     }
   );
 }
@@ -685,6 +705,7 @@ ipcMain.handle(
   async () => {
 
     try {
+      manualLogout = true;
 
       if (sock) {
         try {
@@ -726,9 +747,7 @@ ipcMain.handle(
 
       // Aguarda um pouco antes de criar
       // uma nova sessão
-      setTimeout(() => {
-        connectWhatsApp();
-      }, 1000);
+      scheduleReconnect(1000);
 
       return true;
 
@@ -790,16 +809,3 @@ ipcMain.handle(
 //       win.loadFile('../index.html')
 //   }
 // );
-
-app.on(
-  "window-all-closed",
-  () => {
-
-    if (
-      process.platform !== "darwin"
-    ) {
-      app.quit();
-    }
-
-  }
-);
