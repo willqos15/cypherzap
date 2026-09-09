@@ -6,7 +6,7 @@ type SendResult = {
     number: string;
     status: "success" | "failed";
     sentAt: Date;
-    message?: string;
+    messageToSend?: string;
     error?: string;
 };
 
@@ -55,7 +55,7 @@ export default function ExportReportButton({
                 "pt-BR"
             ),
 
-            Mensagem: result.message ?? "",
+            Mensagem: result.messageToSend ?? "",
 
             Erro: result.error ?? "",
         }));
