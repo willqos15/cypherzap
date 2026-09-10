@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Input } from "../../../components/ui/input";
 
 type SendSettingsProps = {
@@ -6,7 +7,6 @@ type SendSettingsProps = {
     pauseEvery: number;
     pauseDurationSeconds: number;
     sending: boolean;
-
     setMinIntervalSeconds: (value: number) => void;
     setMaxIntervalSeconds: (value: number) => void;
     setPauseEvery: (value: number) => void;
@@ -24,17 +24,86 @@ export function SendSettings({
     setPauseEvery,
     setPauseDurationSeconds,
 }: SendSettingsProps) {
+    const [minInterval, setMinInterval] = useState(
+        String(minIntervalSeconds)
+    );
+    const [maxInterval, setMaxInterval] = useState(
+        String(maxIntervalSeconds)
+    );
+    const [pauseEveryValue, setPauseEveryValue] = useState(
+        String(pauseEvery)
+    );
+    const [pauseDuration, setPauseDuration] = useState(
+        String(pauseDurationSeconds / 60)
+    );
 
-    
+    useEffect(() => {
+        if (!sending) {
+            setMinInterval(String(minIntervalSeconds));
+            setMaxInterval(String(maxIntervalSeconds));
+            setPauseEveryValue(String(pauseEvery));
+            setPauseDuration(String(pauseDurationSeconds / 60));
+        }
+    }, [
+        minIntervalSeconds,
+        maxIntervalSeconds,
+        pauseEvery,
+        pauseDurationSeconds,
+        sending,
+    ]);
+
+    const normalizeValue = (value: string) => {
+        if (value === "") {
+            return "";
+        }
+
+        return value.replace(/^0+(?=\d)/, "");
+    };
+
+    const handleMinIntervalChange = (value: string) => {
+        const normalizedValue = normalizeValue(value);
+
+        setMinInterval(normalizedValue);
+        setMinIntervalSeconds(
+            normalizedValue === "" ? 0 : Number(normalizedValue)
+        );
+    };
+
+    const handleMaxIntervalChange = (value: string) => {
+        const normalizedValue = normalizeValue(value);
+
+        setMaxInterval(normalizedValue);
+        setMaxIntervalSeconds(
+            normalizedValue === "" ? 0 : Number(normalizedValue)
+        );
+    };
+
+    const handlePauseEveryChange = (value: string) => {
+        const normalizedValue = normalizeValue(value);
+
+        setPauseEveryValue(normalizedValue);
+        setPauseEvery(
+            normalizedValue === "" ? 0 : Number(normalizedValue)
+        );
+    };
+
+    const handlePauseDurationChange = (value: string) => {
+        const normalizedValue = normalizeValue(value);
+
+        setPauseDuration(normalizedValue);
+        setPauseDurationSeconds(
+            normalizedValue === "" ? 0 : Number(normalizedValue) * 60
+        );
+    };
+
     return (
         <>
-            <section className=" bg-white p-4">
+            <section className="bg-white p-4">
                 <h2 className="mb-4 text-lg font-semibold">
                     Configurações do envio
                 </h2>
 
                 <div className="flex gap-10">
-
                     <div className="flex flex-col gap-2 border-gray-300 border-2 rounded-lg p-4">
                         <h3 className="text-lg font-semibold">
                             Intervalo entre cada mensagem
@@ -42,38 +111,40 @@ export function SendSettings({
 
                         <div className="flex gap-x-2 items-center">
                             <span>Intervalo mínimo (segundos)</span>
+
                             <Input
                                 className="block w-20 box-border"
-                                type="number" min={0}
-                                value={minIntervalSeconds}
+                                type="number"
+                                min={0}
+                                value={minInterval}
                                 disabled={sending}
                                 onChange={(event) =>
-                                    setMinIntervalSeconds(Number(event.target.value))
+                                    handleMinIntervalChange(
+                                        event.target.value
+                                    )
                                 }
                             />
                         </div>
 
                         <div className="flex gap-2 items-center">
-
                             <span>Intervalo máximo (segundos)</span>
 
                             <Input
                                 className="block w-20 box-border"
                                 type="number"
                                 min={0}
-                                value={maxIntervalSeconds}
+                                value={maxInterval}
                                 disabled={sending}
                                 onChange={(event) =>
-                                    setMaxIntervalSeconds(Number(event.target.value))
+                                    handleMaxIntervalChange(
+                                        event.target.value
+                                    )
                                 }
                             />
-
                         </div>
-
                     </div>
 
                     <hr className="border-gray-300" />
-
 
                     <div className="flex flex-col gap-2 border-gray-300 border-2 rounded-lg p-4">
                         <h3 className="text-lg font-semibold">
@@ -81,17 +152,18 @@ export function SendSettings({
                         </h3>
 
                         <div className="flex gap-2 items-center">
-
                             <span>Pausar após quantos envios?</span>
 
                             <Input
                                 className="mt-1 block w-20 box-border"
                                 type="number"
                                 min={1}
-                                value={pauseEvery}
+                                value={pauseEveryValue}
                                 disabled={sending}
                                 onChange={(event) =>
-                                    setPauseEvery(Number(event.target.value))
+                                    handlePauseEveryChange(
+                                        event.target.value
+                                    )
                                 }
                             />
                         </div>
@@ -103,15 +175,15 @@ export function SendSettings({
                                 className="mt-1 block w-20 box-border"
                                 type="number"
                                 min={1}
-                                value={pauseDurationSeconds / 60}
+                                value={pauseDuration}
                                 disabled={sending}
-                                onChange={(event) => {
-                                    const minutos = Number(event.target.value);
-                                    setPauseDurationSeconds(minutos * 60);
-                                }}
+                                onChange={(event) =>
+                                    handlePauseDurationChange(
+                                        event.target.value
+                                    )
+                                }
                             />
                         </div>
-
                     </div>
                 </div>
             </section>

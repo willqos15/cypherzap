@@ -70,6 +70,13 @@ contextBridge.exposeInMainWorld("whatsapp", {
 },
 
 
+ getWhatsAppGroups: () => {
+    return ipcRenderer.invoke("whatsapp:get-groups");
+  },
+
+  exportGroupNumbers: (groupId) => {
+    return ipcRenderer.invoke("whatsapp:export-group-numbers", groupId);
+  },
 
     onLicense: (callback) => {
       const listener = (_event, license) => {

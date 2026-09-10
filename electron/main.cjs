@@ -551,6 +551,95 @@ async function connectWhatsApp() {
   );
 }
 
+ipcMain.handle("whatsapp:get-groups", async () => {
+  if (!sock) {
+    throw new Error("WhatsApp não está conectado.");
+  }
+
+  const groups = await sock.groupFetchAllParticipating();
+
+  return Object.values(groups).map((group) => ({
+    id: group.id,
+    title: group.subject,
+    participants: group.participants
+      .map((participant) => participant.id)
+      .filter(Boolean),
+  }));
+});
+
+ipcMain.handle(
+  "whatsapp:export-group-numbers",
+  async (_, groupId) => {
+    if (!sock) {
+      throw new Error(
+        "WhatsApp não está conectado."
+      );
+    }
+
+    const groups =
+      await sock.groupFetchAllParticipating();
+
+    const group = groups[groupId];
+
+    if (!group) {
+      throw new Error(
+        "Grupo não encontrado."
+      );
+    }
+
+    const contacts =
+      await Promise.all(
+        group.participants.map(
+          async (participant) => {
+            const id = participant.id;
+
+            if (
+              !id ||
+              id.endsWith("@g.us")
+            ) {
+              return null;
+            }
+
+            let number = "";
+
+            if (
+              id.endsWith("@lid")
+            ) {
+              const pn =
+                await sock.signalRepository?.lidMapping?.getPNForLID(
+                  id
+                );
+
+              if (pn) {
+                number = pn
+                  .split("@")[0]
+                  .split(":")[0]
+                  .replace(/\D/g, "");
+              }
+            } else {
+              number = id
+                .split("@")[0]
+                .split(":")[0]
+                .replace(/\D/g, "");
+            }
+
+            return {
+              name:
+                participant.notify ||
+                participant.name ||
+                "Nome indisponível",
+
+              number:
+                number ||
+                "Número indisponível",
+            };
+          }
+        )
+      );
+
+    return contacts.filter(Boolean);
+  }
+);
 
 ipcMain.handle(
   "send-message",

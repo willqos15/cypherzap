@@ -55,6 +55,20 @@ declare global {
       getStatus(): Promise<string>;
 
 
+        getWhatsAppGroups(): Promise<{
+        id: string;
+        title: string;
+      }[]>;
+
+      exportGroupNumbers(
+    groupId: string
+): Promise<{
+    name: string;
+    number: string;
+}[]>;
+  
+
+
 
     };
 
