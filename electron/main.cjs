@@ -1,12 +1,13 @@
 const {
   app,
   BrowserWindow,
-  ipcMain
+  ipcMain,
+  Menu
 } = require("electron");
 
 const path = require("path");
 
-
+Menu.setApplicationMenu(null);
 
 const makeWASocket =
   require("@whiskeysockets/baileys").default;

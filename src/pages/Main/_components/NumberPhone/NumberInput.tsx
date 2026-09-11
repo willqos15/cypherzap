@@ -1,3 +1,4 @@
+
 import { formatNumber, normalizePhone } from "#lib/utils";
 import { useRef, useState } from "react";
 
@@ -44,10 +45,8 @@ export default function NumberInput({
 
     if (invalidCount > 0) {
       setError(
-        `${invalidCount} número${
-          invalidCount !== 1 ? "s" : ""
-        } inválido${
-          invalidCount !== 1 ? "s" : ""
+        `${invalidCount} número${invalidCount !== 1 ? "s" : ""
+        } inválido${invalidCount !== 1 ? "s" : ""
         }.`
       );
     }
@@ -153,6 +152,9 @@ export default function NumberInput({
 
   return (
     <div>
+
+     
+
       <div
         onClick={() =>
           inputRef.current?.focus()
@@ -160,10 +162,9 @@ export default function NumberInput({
         className={`
           flex min-h-11.25 max-h-40 overflow-y-scroll flex-wrap items-center gap-1.5
           rounded-md border border-gray-300 p-2
-          ${
-            disabled
-              ? "cursor-not-allowed opacity-60"
-              : "cursor-text"
+          ${disabled
+            ? "cursor-not-allowed opacity-60"
+            : "cursor-text"
           }
         `}
       >

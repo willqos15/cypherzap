@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 
 import { Button } from "../../../../components/ui/button";
 
-import { Contact, X } from "lucide-react";
+import { Contact, Trash, X } from "lucide-react";
 
 import { normalizePhone } from "#lib/utils";
 
@@ -525,9 +525,11 @@ export default function ExcelImportNumber({
   }
 
   return (
-    <section className="flex flex-wrap items-center gap-2">
-      {/* INPUT ESCONDIDO */}
+    <section className="flex flex-wrap justify-between items-center">
 
+
+      <div className="flex flex-wrap items-center gap-2">
+      {/* INPUT ESCONDIDO */}
       <input
         className="hidden"
         ref={fileInputRef}
@@ -554,6 +556,22 @@ export default function ExcelImportNumber({
           ? selectedFile.name
           : "Importar Lista de Números"}
       </Button>
+
+
+      {/* CANCELAR */}
+
+      {selectedFile &&
+        importedNumbers.length > 0 && (
+          <Button
+            variant="delete"
+            type="button"
+            onClick={handleCancelImport}
+            disabled={loading}
+          >
+            <X />
+          </Button>
+        )}
+
 
       {/* SELECT DAS COLUNAS */}
 
@@ -582,20 +600,7 @@ export default function ExcelImportNumber({
           </select>
         )}
 
-      {/* CANCELAR */}
-
-      {selectedFile &&
-        importedNumbers.length > 0 && (
-          <Button
-            variant="delete"
-            type="button"
-            onClick={handleCancelImport}
-            disabled={loading}
-          >
-            <X />
-          </Button>
-        )}
-
+      
       {/* LOADING */}
 
       {loading && (
@@ -611,6 +616,17 @@ export default function ExcelImportNumber({
           {result}
         </p>
       )}
+      </div>
+
+  {numbers.length>0 &&
+       <Button variant="ghost"
+        className=""
+        onClick={() => {onNumbersChange([])
+          setSelectedFile(null)
+        }}>
+        <Trash />
+      </Button>
+      }
     </section>
   );
 }

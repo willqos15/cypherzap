@@ -334,14 +334,7 @@ export default function CreateModelDialog({
         <div className="space-y-4">
 
          
-          <Button
-              type="button"
-              variant="outline"
-              onClick={adicionarVariante}
-              disabled={sending}
-            >
-              + Adicionar variação de mensagem
-            </Button>
+          
 
           {/* =========================
               LISTA DE VARIANTES
@@ -393,6 +386,16 @@ export default function CreateModelDialog({
                 </div>
               )
             )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={adicionarVariante}
+              disabled={sending}
+            >
+              + Adicionar variação de mensagem
+            </Button>
           </div>
         </div>
 

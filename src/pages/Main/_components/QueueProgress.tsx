@@ -211,7 +211,7 @@ export default function QueueProgress({
         </>
       )}
 
-      {sendResults.length > 0 && 
+      {sendResults.length > 0 && !sending &&
         <ExportReportButton results={sendResults} className='mt-2 w-full' />
       }
     </section>

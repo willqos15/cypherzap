@@ -5,11 +5,11 @@ import { useMessageQueue } from "../../hooks/useMessageQueue";
 
 
 import QueueProgress from "./_components/QueueProgress";
-import NumberInput from "./_components/NumberPhone/NumberInput";
+
 import MessageComposer from "./_components/Message/MessageComposer";
 
 import type { MessageModel } from "../../types/MessageModel";
-import ExcelImportNumber from "./_components/NumberPhone/ExcelImportNumber";
+
 
 import { Toaster } from "sonner";
 import { SendSettings } from "./_components/SendSettings";
@@ -17,6 +17,7 @@ import { Send } from "lucide-react";
 import { Button } from "#components/ui/button";
 import type { MessageAttachmentData } from "../../types/Attachment";
 import { useWhatsApp } from "../../context/WhatsAppContext";
+import NumberCompose from "./_components/NumberPhone/NumberCompose";
 
 
 interface InterfacePageMain {
@@ -101,17 +102,9 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
         <div className= {`${(!connected || disconnecting || !autorizado) && "pointer-events-none opacity-50"}`}>
 
           <section className={`${styleSection}`}>
-            <ExcelImportNumber
-              numbers={numbers}
-              onNumbersChange={setNumbers}
-            />
 
-            <NumberInput
-              numbers={numbers}
-              disabled={queue.sending}
-              onNumbersChange={setNumbers}
-            />
-
+            <NumberCompose  numbers={numbers}
+              setNumbers={setNumbers}  disabled={queue.sending}/>
 
           </section>
 

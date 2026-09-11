@@ -6,7 +6,7 @@ import {
   DialogTrigger,
 } from "../../../../components/ui/dialog";
 
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 import { Button } from "../../../../components/ui/button";
 
@@ -70,6 +70,199 @@ function handleExport() {
   });
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
+
+  const maxVariantes = Math.max(
+    ...models.map((model) => model.variantes.length)
+  );
+
+  // ========================================
+  // LARGURA DAS COLUNAS
+  // ========================================
+
+  const TEXT_COLUMN_WIDTH = 50;
+
+  worksheet["!cols"] = [
+    {
+      wch: 30,
+    },
+    ...Array.from(
+      { length: maxVariantes },
+      () => ({
+        wch: TEXT_COLUMN_WIDTH,
+      })
+    ),
+  ];
+
+  // ========================================
+  // CALCULAR ALTURA DAS LINHAS
+  // ========================================
+
+  function estimateLineCount(
+    text: string,
+    columnWidth: number
+  ) {
+    if (!text) return 1;
+
+    const lines = text.split(/\r?\n/);
+
+    let totalLines = 0;
+
+    for (const line of lines) {
+      if (!line) {
+        totalLines += 1;
+        continue;
+      }
+
+      let estimatedWidth = 0;
+
+      for (const char of line) {
+        const codePoint = char.codePointAt(0) ?? 0;
+
+        const isEmoji =
+          codePoint > 0x1f000 ||
+          (codePoint >= 0x2600 &&
+            codePoint <= 0x27bf);
+
+        estimatedWidth += isEmoji ? 2 : 1;
+      }
+
+      const words = line.split(/\s+/);
+
+      let calculatedLines = Math.ceil(
+        estimatedWidth / columnWidth
+      );
+
+      for (const word of words) {
+        let wordWidth = 0;
+
+        for (const char of word) {
+          const codePoint = char.codePointAt(0) ?? 0;
+
+          const isEmoji =
+            codePoint > 0x1f000 ||
+            (codePoint >= 0x2600 &&
+              codePoint <= 0x27bf);
+
+          wordWidth += isEmoji ? 2 : 1;
+        }
+
+        if (wordWidth > columnWidth) {
+          calculatedLines = Math.max(
+            calculatedLines,
+            Math.ceil(wordWidth / columnWidth)
+          );
+        }
+      }
+
+      totalLines += Math.max(
+        1,
+        calculatedLines
+      );
+    }
+
+    return totalLines;
+  }
+
+  const rowHeights = [
+    {
+      hpt: 30,
+    },
+  ];
+
+  rows.forEach((row) => {
+    let maxLines = 1;
+
+    Object.entries(row).forEach(
+      ([key, value]) => {
+        const columnWidth =
+          key === "titulo"
+            ? 30
+            : TEXT_COLUMN_WIDTH;
+
+        const lines = estimateLineCount(
+          value,
+          columnWidth
+        );
+
+        maxLines = Math.max(
+          maxLines,
+          lines
+        );
+      }
+    );
+
+    const calculatedHeight = Math.max(
+      45,
+      maxLines * 20 + 25
+    );
+
+    rowHeights.push({
+      hpt: calculatedHeight,
+    });
+  });
+
+  worksheet["!rows"] = rowHeights;
+
+  // ========================================
+  // ESTILIZAR CÉLULAS
+  // ========================================
+
+  const range = XLSX.utils.decode_range(
+    worksheet["!ref"] || "A1"
+  );
+
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({
+        r: row,
+        c: col,
+      });
+
+      const cell = worksheet[cellAddress];
+
+      if (!cell) continue;
+
+      cell.s = {
+        alignment: {
+          horizontal: "center",
+          vertical: "center",
+          wrapText: true,
+        },
+      };
+    }
+  }
+
+  // ========================================
+  // CABEÇALHO
+  // ========================================
+
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({
+      r: 0,
+      c: col,
+    });
+
+    const cell = worksheet[cellAddress];
+
+    if (!cell) continue;
+
+    cell.s = {
+      alignment: {
+        horizontal: "center",
+        vertical: "center",
+        wrapText: true,
+      },
+
+      font: {
+        bold: true,
+      },
+    };
+  }
+
+  // ========================================
+  // EXPORTAR
+  // ========================================
+
   const workbook = XLSX.utils.book_new();
 
   XLSX.utils.book_append_sheet(
@@ -78,7 +271,10 @@ function handleExport() {
     "Modelos"
   );
 
-  XLSX.writeFile(workbook, "modelos.xlsx");
+  XLSX.writeFile(
+    workbook,
+    "modelos.xlsx"
+  );
 }
 
   // ========================================
@@ -137,8 +333,8 @@ function handleExport() {
       <DialogContent className="max-w-md">
 
         <DialogHeader>
-          <DialogTitle>
-            Modelos de mensagem
+          <DialogTitle className="font-bold">
+            Selecione o Modelo de mensagem
           </DialogTitle>
 
         </DialogHeader>
