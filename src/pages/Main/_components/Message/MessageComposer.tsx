@@ -139,13 +139,14 @@ export default function MessageComposer({
       Texto da Mensagem
       </h2>
 
-      <div className="flex gap-4">
+      <div className="flex justify-between gap-4">
 
         <MessageAttachment
           attachment={attachment}
           onAttachmentChange={onAttachmentChange}
         />
 
+        <div className="flex gap-4">
         <CreateModelDialog
           models={models}
           sending={sending}
@@ -160,6 +161,7 @@ export default function MessageComposer({
           onModelsChange={onModelsChange}
           disabled={sending}
         />
+        </div>
       </div>
 
 
