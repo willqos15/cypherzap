@@ -98,7 +98,11 @@ useEffect(() => {
               </Button>
 
 
-              <LicenseDialog licenca={licenca}/>
+              <LicenseDialog licenca={licenca}
+               onLicenseUpdate={(license) => {
+    setLicenca(license);
+    setAutorizado(license?.autorizado ?? false);
+  }}/>
             </>
           )}
 

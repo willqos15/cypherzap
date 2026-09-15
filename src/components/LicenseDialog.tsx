@@ -18,6 +18,7 @@ import {
 
 interface LicenseDialogProps {
   licenca: Licenca | null;
+  onLicenseUpdate: (license: Licenca | null) => void;
 }
 
 function formatarData(data: string | null): string {
@@ -133,7 +134,7 @@ function calcularTempoRestante(data: string | null): string {
 }
 
 export default function LicenseDialog({
-  licenca,
+  licenca, onLicenseUpdate
 }: LicenseDialogProps) {
   const autorizado = licenca?.autorizado ?? false;
 
@@ -150,7 +151,17 @@ export default function LicenseDialog({
   );
 
   return (
-    <Dialog>
+    <Dialog
+  onOpenChange={(open) => {
+    if (!open) return;
+
+    window.whatsapp.getLicense().then((license) => {
+      console.log("LICENÇA REVERIFICADA:", license);
+
+      onLicenseUpdate(license);
+    });
+  }}
+>
       <DialogTrigger
         render={
           <button
@@ -230,8 +241,8 @@ export default function LicenseDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>
-                <h2 className="font-bold">Detalhes da licença</h2>
+              <DialogTitle className="font-bold">
+                Detalhes da licença
               </DialogTitle>
 
 
