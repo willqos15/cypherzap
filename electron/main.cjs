@@ -19,7 +19,8 @@ const {
 
 const QRCode = require("qrcode");
 const { env } = require("process");
-let whatsappQR = null;
+
+
 
 let mainWindow = null;
 let sock = null;
@@ -27,6 +28,7 @@ let whatsappStatus = "connecting";
 let licencaAtual = null;
 let reconnectTimeout = null;
 let manualLogout = false;
+const contacts = new Map();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -61,12 +63,20 @@ function scheduleReconnect(delay) {
     return;
   }
 
-  reconnectTimeout = setTimeout(() => {
+  reconnectTimeout = setTimeout(async () => {
     reconnectTimeout = null;
-    manualLogout = false;
 
-    if (!sock) {
-      connectWhatsApp();
+    if (!sock && !manualLogout) {
+      try {
+        await connectWhatsApp();
+      } catch (error) {
+        console.error(
+          "Erro ao reconectar WhatsApp:",
+          error
+        );
+
+        scheduleReconnect(5000);
+      }
     }
   }, delay);
 }
@@ -211,6 +221,63 @@ async function atualizarLicenca(numero) {
 
 
 
+
+ipcMain.handle(
+  "whatsapp:export-contacts",
+  async () => {
+    if (!sock) {
+      throw new Error(
+        "WhatsApp não está conectado."
+      );
+    }
+
+    const result = [];
+
+    for (const contact of contacts.values()) {
+      if (!contact.id) continue;
+
+      let number = "";
+
+      if (contact.id.endsWith("@lid")) {
+        const pn =
+          await sock.signalRepository?.lidMapping?.getPNForLID(
+            contact.id
+          );
+
+        if (pn) {
+          number = pn
+            .split("@")[0]
+            .split(":")[0]
+            .replace(/\D/g, "");
+        }
+      } else {
+        number = contact.id
+          .split("@")[0]
+          .split(":")[0]
+          .replace(/\D/g, "");
+      }
+
+      if (!number) continue;
+
+      result.push({
+        name:
+          contact.notify ||
+          contact.name ||
+          contact.verifiedName ||
+          "Nome indisponível",
+
+        number,
+      });
+    }
+
+    console.log(
+      "CONTATOS PARA EXPORTAR:",
+      result.length
+    );
+
+    return result;
+  }
+);
 
 async function verificarLicenca(numero) {
   try {
@@ -364,6 +431,68 @@ async function verificarLicenca(numero) {
 
 const fs = require("fs");
 
+function enviarContagemContatos() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send(
+    "whatsapp-contacts-count",
+    contacts.size
+  );
+}
+
+async function resetWhatsAppAuth() {
+  console.log("Sessão inválida (401). Cancelando autenticação...");
+
+  if (sock) {
+    try {
+      sock.end(undefined);
+    } catch (error) {
+      console.log("Socket já estava encerrado.");
+    }
+
+    sock = null;
+  }
+
+  const authPath = path.join(
+    app.getPath("userData"),
+    "auth"
+  );
+
+  if (fs.existsSync(authPath)) {
+    fs.rmSync(authPath, {
+      recursive: true,
+      force: true,
+    });
+
+    console.log("Autenticação removida.");
+  }
+
+  whatsappStatus = "disconnected";
+  licencaAtual = null;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(
+      "whatsapp-status",
+      "disconnected"
+    );
+
+    mainWindow.webContents.send(
+      "whatsapp-qr",
+      null
+    );
+
+    mainWindow.webContents.send(
+      "whatsapp-license",
+      null
+    );
+  }
+
+  scheduleReconnect(1000);
+}
+
+
 async function connectWhatsApp() {
   console.log("Iniciando Baileys...");
 
@@ -372,19 +501,12 @@ async function connectWhatsApp() {
     "auth"
   );
 
-
-
-
   const { state, saveCreds } =
-    await useMultiFileAuthState(
-      path.join(
-        app.getPath("userData"),
-        "auth"
-      )
-    );
+    await useMultiFileAuthState(authPath);
 
   sock = makeWASocket({
     auth: state,
+    syncFullHistory: true,
   });
 
   sock.ev.on(
@@ -392,40 +514,24 @@ async function connectWhatsApp() {
     saveCreds
   );
 
-  sock.ev.on(
-    "connection.update",
-    async (update) => {
-      const {
-        connection,
-        lastDisconnect,
-        qr,
-      } = update;
+sock.ev.on("connection.update", (update) => {
+  console.log("CONNECTION UPDATE:", update);
 
+  const statusCode =
+    update.lastDisconnect?.error?.output?.statusCode;
 
-      console.log("CONNECTION UPDATE COMPLETO:");
-      console.log(update);
+  const data =
+    update.lastDisconnect?.error?.data;
 
-      console.log(
-        "CONNECTION UPDATE:",
-        {
-          connection,
-          hasQR: !!qr,
-        }
-      );
+  console.log("STATUS:", statusCode);
+  console.log("DATA:", data);
 
+  if (update.qr) {
+    console.log("QR GERADO PELO BAILEYS");
 
-
-      // =========================
-      // QR CODE
-      // =========================
-
-      if (qr) {
-        console.log("QR CODE RECEBIDO");
-
-
-        const qrDataUrl = await QRCode.toDataURL(qr);
-
-        whatsappQR = qrDataUrl;
+    QRCode.toDataURL(update.qr)
+      .then((qrDataUrl) => {
+        console.log("QR CONVERTIDO E ENVIADO PARA O FRONT");
 
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(
@@ -433,126 +539,170 @@ async function connectWhatsApp() {
             qrDataUrl
           );
         }
+      })
+      .catch((error) => {
+        console.error(
+          "Erro ao gerar QR Code:",
+          error
+        );
+      });
+  }
+
+  if (update.connection === "open") {
+    whatsappStatus = "connected";
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(
+        "whatsapp-status",
+        "connected"
+      );
+    }
+
+    return;
+  }
+
+  if (update.connection === "close") {
+    whatsappStatus = "disconnected";
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(
+        "whatsapp-status",
+        "disconnected"
+      );
+    }
+
+    // Sessão inválida
+    if (statusCode === 401) {
+      resetWhatsAppAuth().catch((error) => {
+        console.error(
+          "Erro ao resetar autenticação:",
+          error
+        );
+      });
+
+      return;
+    }
+
+    // Logout feito pelo usuário
+    if (manualLogout) {
+      console.log(
+        "Desconexão manual. Não reconectar automaticamente."
+      );
+
+      return;
+    }
+
+    // Outros erros, como 503
+    console.log(
+      `Conexão encerrada (${statusCode}). Tentando reconectar...`
+    );
+
+    sock = null;
+
+    scheduleReconnect(3000);
+  }
+});
+
+  sock.ev.on(
+    "messaging-history.set",
+    ({ contacts: historyContacts }) => {
+      console.log(
+        "CONTATOS RECEBIDOS NA SINCRONIZAÇÃO:",
+        historyContacts.length
+      );
+
+      for (const contact of historyContacts) {
+        if (!contact.id) continue;
+
+        const existing = contacts.get(contact.id) || {};
+
+        contacts.set(contact.id, {
+          ...existing,
+          ...contact,
+        });
       }
 
-      // =========================
-      // CONECTADO
-      // =========================
+      console.log(
+        "TOTAL DE CONTATOS:",
+        contacts.size
+      );
 
-      if (connection === "open") {
-        console.log("WHATSAPP CONECTADO");
-        console.log("==========");
-        console.log("BAILEYS: CONECTOU");
-        console.log("==========");
-
-        whatsappStatus = "connected";
-
-        mainWindow.webContents.send(
-          "whatsapp-status",
-          "connected"
-        );
-
-        mainWindow.webContents.send(
-          "whatsapp-qr",
-          null
-        );
-
-        const numero = sock.user.id
-          .split(":")[0]
-          .replace(/\D/g, "");
-
-        console.log(
-          "Número conectado:",
-          numero
-        );
-
-        await atualizarLicenca(numero);
-      }
-
-      // =========================
-      // DESCONECTADO
-      // =========================
-
-      if (connection === "close") {
-        whatsappStatus = "disconnected";
-
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(
-            "whatsapp-status",
-            "disconnected"
-          );
-
-          mainWindow.webContents.send(
-            "whatsapp-qr",
-            null
-          );
-        }
-
-        const code =
-          lastDisconnect?.error?.output?.statusCode;
-
-        console.log(
-          "WHATSAPP DESCONECTADO:",
-          code
-        );
-
-        sock = null;
-        if (manualLogout) {
-          return;
-        }
-        licencaAtual = null;
-
-        // =========================
-        // SESSÃO INVÁLIDA
-        // =========================
-
-        if (code === DisconnectReason.loggedOut) {
-          console.log(
-            "Sessão inválida. Removendo autenticação..."
-          );
-
-          const authPath = path.join(
-            app.getPath("userData"),
-            "auth"
-          );
-
-          try {
-            if (fs.existsSync(authPath)) {
-              fs.rmSync(authPath, {
-                recursive: true,
-                force: true
-              });
-
-              console.log(
-                "AUTH removido."
-              );
-            }
-          } catch (error) {
-            console.error(
-              "Erro ao remover AUTH:",
-              error
-            );
-          }
-
-          // Inicia uma sessão limpa
-          scheduleReconnect(1000);
-
-          return;
-        }
-
-        // =========================
-        // OUTROS ERROS
-        // =========================
-
-        console.log(
-          "Tentando reconectar em 3 segundos..."
-        );
-
-        scheduleReconnect(3000);
-      }
+      enviarContagemContatos();
     }
   );
+
+  sock.ev.on(
+    "contacts.upsert",
+    (newContacts) => {
+      console.log(
+        "CONTATOS UPSERT:",
+        newContacts.length
+      );
+
+      for (const contact of newContacts) {
+        if (!contact.id) continue;
+
+        const existing = contacts.get(contact.id) || {};
+
+        contacts.set(contact.id, {
+          ...existing,
+          ...contact,
+        });
+      }
+
+      console.log(
+        "TOTAL DE CONTATOS:",
+        contacts.size
+      );
+
+      enviarContagemContatos();
+    }
+  );
+
+
+  sock.ev.on(
+    "contacts.update",
+    (updatedContacts) => {
+      console.log(
+        "CONTATOS UPDATE:",
+        updatedContacts.length
+      );
+
+      for (const contact of updatedContacts) {
+        if (!contact.id) continue;
+
+        const existing = contacts.get(contact.id) || {};
+
+        contacts.set(contact.id, {
+          ...existing,
+          ...contact,
+        });
+      }
+
+      console.log(
+        "TOTAL DE CONTATOS:",
+        contacts.size
+      );
+
+      enviarContagemContatos();
+    }
+  );
+
+
 }
+
+ipcMain.handle(
+  "whatsapp:get-contacts-count",
+  () => {
+    if (!sock) {
+      throw new Error(
+        "WhatsApp não está conectado."
+      );
+    }
+
+    return contacts.size;
+  }
+);
 
 ipcMain.handle("whatsapp:get-groups", async () => {
   if (!sock) {
@@ -856,6 +1006,8 @@ ipcMain.handle(
 
   }
 );
+
+
 
 function enviarLicencaParaFront() {
   if (!mainWindow) return;

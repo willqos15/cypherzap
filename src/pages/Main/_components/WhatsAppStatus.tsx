@@ -28,49 +28,38 @@ export default function WhatsAppStatus({
 useEffect(() => {
   let ativo = true;
 
-  window.whatsapp
-    .getLicense()
-    .then((license) => {
+  const unsubscribe = window.whatsapp.onLicense((license) => {
+    console.log("LICENÇA RECEBIDA:", license);
+
+    if (!ativo) return;
+
+    setLicenca(license);
+    setAutorizado(license?.autorizado ?? false);
+  });
+
+  if (connected) {
+    window.whatsapp.getLicense().then((license) => {
       if (!ativo) return;
 
-      console.log(
-        "LICENÇA RECUPERADA:",
-        license
-      );
+      console.log("LICENÇA RECUPERADA:", license);
 
       setLicenca(license);
-      setAutorizado(
-        license?.autorizado ?? false
-      );
+      setAutorizado(license?.autorizado ?? false);
     });
-
-
-
-  const unsubscribe =
-    window.whatsapp.onLicense(
-      (license) => {
-        console.log(
-          "LICENÇA RECEBIDA:",
-          license
-        );
-
-        if (!ativo) return;
-
-        setLicenca(license);
-        setAutorizado(
-          license?.autorizado ?? false
-        );
-      }
-    );
+  } else {
+    setLicenca(null);
+    setAutorizado(false);
+  }
 
   return () => {
     ativo = false;
     unsubscribe?.();
   };
-}, []);
+}, [connected, setAutorizado]);
 
- 
 
+console.log("QR NO WHATSAPP STATUS:", qr);
+console.log("CONNECTED NO WHATSAPP STATUS:", connected);
 
   return (
     <div>

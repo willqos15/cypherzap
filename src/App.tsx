@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 
-import { useWhatsApp } from "#hooks/useWhatsApp";
+
 
 import WhatsAppStatus from "./pages/Main/_components/WhatsAppStatus";
 
 import PageMain from "./pages/Main/PageMain";
 
-import { WhatsAppProvider } from "./context/WhatsAppContext";
+import { useWhatsApp, WhatsAppProvider } from "./context/WhatsAppContext";
 
 import { GroupContactsExtractor } from "./pages/Main/_components/GroupContactsExtractor";
 
 import { Button } from "#components/ui/button";
+import ExportContacts from "./pages/Main/_components/ExportContacts";
 
 type Modo = "envio" | "grupos";
 
@@ -71,6 +72,7 @@ function AppContent() {
 
       <div className={modo === "grupos" ? "block" : "hidden"}>
         <GroupContactsExtractor />
+        <ExportContacts/>
       </div>
     </>
   );

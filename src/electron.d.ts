@@ -14,19 +14,23 @@ declare global {
 
     whatsapp: {
 
-      onQR(
-        callback: (
-          qr: string | null
-        ) => void
-      ): void;
+      invoke: (
+        channel: string,
+        ...args: unknown[]
+      ) => Promise<any>;
 
+      on: (
+        channel: string,
+        callback: (...args: any[]) => void
+      ) => () => void;
+    
+      onQR: (callback: (qr: string) => void) => () => void;
 
+    onStatus: (
+      callback: (status: string) => void
+    ) => () => void;
 
-      onStatus(
-        callback: (
-          status: WhatsAppStatus
-        ) => void
-      ): void;
+     
 
 
       getLicense(): Promise<Licenca | null>;
@@ -55,20 +59,30 @@ declare global {
       getStatus(): Promise<string>;
 
 
-        getWhatsAppGroups(): Promise<{
+      getWhatsAppGroups(): Promise<{
         id: string;
         title: string;
       }[]>;
 
       exportGroupNumbers(
-    groupId: string
-): Promise<{
+        groupId: string
+      ): Promise<{
+        name: string;
+        number: string;
+      }[]>;
+
+
+onContactsCount: (
+  callback: (count: number) => void
+) => () => void;
+
+      exportContacts(): Promise<{
     name: string;
     number: string;
 }[]>;
-  
 
 
+  getContactsCount: () => Promise<number>;
 
     };
 

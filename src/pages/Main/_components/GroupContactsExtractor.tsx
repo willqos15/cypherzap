@@ -118,6 +118,8 @@ export function GroupContactsExtractor() {
                             Extrair contatos de grupos
                         </h2>
 
+                        <div className="flex gap-4 items-center">
+
                         {groups.length === 0 ? (
                             <button
                                 type="button"
@@ -215,8 +217,14 @@ export function GroupContactsExtractor() {
                                             }`}
                                     />
                                 </button>
+                                
 
-                                {selectedGroup && (
+                                
+                            </div>
+                        )}
+                        </div>
+
+                        {selectedGroup && groups.length > 0  && (
                                     <ExportGroupButton
                                         groupId={
                                             selectedGroup.id
@@ -226,8 +234,6 @@ export function GroupContactsExtractor() {
                                         }
                                     />
                                 )}
-                            </div>
-                        )}
 
                         {error && (
                             <span className="text-sm text-red-600">

@@ -5,8 +5,11 @@ const {
 
 contextBridge.exposeInMainWorld("whatsapp", {
 
-  onQR: (callback) => {
+onQR: (callback) => {
+  console.log("REGISTRANDO LISTENER DO QR");
+
   const listener = (_, qr) => {
+    console.log("QR RECEBIDO NO PRELOAD:", qr);
     callback(qr);
   };
 
@@ -37,6 +40,7 @@ contextBridge.exposeInMainWorld("whatsapp", {
     );
   };
 },
+
 
   enviarMensagem: (number, message,  attachment) => {
     return ipcRenderer.invoke(
@@ -73,6 +77,34 @@ contextBridge.exposeInMainWorld("whatsapp", {
  getWhatsAppGroups: () => {
     return ipcRenderer.invoke("whatsapp:get-groups");
   },
+
+exportContacts: () => {
+    return ipcRenderer.invoke("whatsapp:export-contacts");
+},
+
+getContactsCount: () => {
+  return ipcRenderer.invoke(
+    "whatsapp:get-contacts-count"
+  );
+},
+
+onContactsCount: (callback) => {
+  const listener = (_event, count) => {
+    callback(count);
+  };
+
+  ipcRenderer.on(
+    "whatsapp-contacts-count",
+    listener
+  );
+
+  return () => {
+    ipcRenderer.removeListener(
+      "whatsapp-contacts-count",
+      listener
+    );
+  };
+},
 
   exportGroupNumbers: (groupId) => {
     return ipcRenderer.invoke("whatsapp:export-group-numbers", groupId);

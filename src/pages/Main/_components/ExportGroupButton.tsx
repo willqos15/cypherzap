@@ -60,7 +60,7 @@ export function ExportGroupButton({
             type="button"
             onClick={handleExport}
             disabled={disabled || isExporting}
-            className="flex w-fit items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
             <Download className="h-4 w-4" />
 

@@ -35,56 +35,55 @@ export function WhatsAppProvider({
   const [disconnecting, setDisconnecting] =
     useState(false);
 
-  useEffect(() => {
-    window.whatsapp.onQR((qrData) => {
-      setQr(qrData);
-    });
+useEffect(() => {
+  const removeQRListener = window.whatsapp.onQR((qrData) => {
+    console.log("QR RECEBIDO NO HOOK:", qrData);
+    setQr(qrData);
+  });
 
-    window.whatsapp.onStatus((value) => {
-      if (value === "connected") {
-        setConnected(true);
-        setStatus("🟢 Conectado");
-      }
-
-      if (value === "disconnected") {
-        setConnected(false);
-        setStatus("🔴 Desconectado");
-      }
-    });
-
-    window.whatsapp
-      .getStatus()
-      .then((value) => {
-        if (value === "connected") {
-          setConnected(true);
-          setStatus("🟢 Conectado");
-        }
-
-        if (value === "disconnected") {
-          setConnected(false);
-          setStatus("🔴 Desconectado");
-        }
-      });
-  }, []);
-
-  async function desconectar() {
-    try {
-      setDisconnecting(true);
-
-      await window.whatsapp.desconectar();
-
-      setConnected(false);
+  const removeStatusListener = window.whatsapp.onStatus((value) => {
+    if (value === "connected") {
+      setConnected(true);
+      setStatus("🟢 Conectado");
       setQr(null);
-      setStatus("🔴 Desconectado");
-    } catch (error) {
-      console.error(
-        "Erro ao desconectar:",
-        error
-      );
-    } finally {
-      setDisconnecting(false);
     }
+
+    if (value === "disconnected") {
+      setConnected(false);
+      setStatus("🔴 Desconectado");
+      setQr(null);
+    }
+  });
+
+  window.whatsapp.getStatus().then((value) => {
+    if (value === "connected") {
+      setConnected(true);
+      setStatus("🟢 Conectado");
+    }
+
+    if (value === "disconnected") {
+      setConnected(false);
+      setStatus("🔴 Desconectado");
+    }
+  });
+
+  return () => {
+    removeQRListener();
+    removeStatusListener();
+  };
+}, []);
+
+ async function desconectar() {
+  try {
+    setDisconnecting(true);
+    await window.whatsapp.desconectar();
+  } catch (error) {
+    console.error("Erro ao desconectar:", error);
+  } finally {
+    setDisconnecting(false);
+    
   }
+}
 
   return (
     <WhatsAppContext.Provider
