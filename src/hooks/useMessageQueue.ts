@@ -1,4 +1,3 @@
-
 import {
   useEffect,
   useRef,
@@ -8,21 +7,24 @@ import {
 import type {
   MessageModel,
 } from "../types/MessageModel";
-import type { SendResult } from "../types/sendResult";
-import type { MessageAttachmentData } from "../types/Attachment";
+
+import type {
+  SendResult,
+} from "../types/sendResult";
+
+import type {
+  MessageAttachmentData,
+} from "../types/Attachment";
 
 type Props = {
   numbers: string[];
   connected: boolean;
-   message: string;
-   attachment: MessageAttachmentData | null
-
+  message: string;
+  attachment: MessageAttachmentData | null;
   models: MessageModel[];
   selectedModelId: string | null;
-
   minIntervalSeconds: number;
   maxIntervalSeconds: number;
-
   pauseEvery: number;
   pauseDurationSeconds: number;
 };
@@ -37,11 +39,16 @@ export function useMessageQueue({
   pauseEvery,
   pauseDurationSeconds,
   message,
-  attachment
+  attachment,
 }: Props) {
+  // =========================
+  // ESTADOS
+  // =========================
+
   const [sending, setSending] = useState(false);
 
-  const [sendResults, setSendResults] = useState<SendResult[]>([]);
+  const [sendResults, setSendResults] =
+    useState<SendResult[]>([]);
 
   const [currentIndex, setCurrentIndex] =
     useState(0);
@@ -70,8 +77,31 @@ export function useMessageQueue({
   const [currentMessage, setCurrentMessage] =
     useState("");
 
+  // =========================
+  // CONTROLE INTERNO DA FILA
+  // =========================
+
   const stopRequested =
     useRef(false);
+
+  const pauseRequested =
+    useRef(false);
+
+  /**
+   * Índice REAL da fila.
+   *
+   * Diferente do currentIndex, que é
+   * apenas estado para atualizar a interface.
+   */
+  const queueIndexRef =
+    useRef(0);
+
+  /**
+   * Mantém o estado atual da conexão
+   * disponível dentro das funções assíncronas.
+   */
+  const connectedRef =
+    useRef(connected);
 
   const timerRef =
     useRef<ReturnType<typeof setInterval> | null>(
@@ -84,27 +114,45 @@ export function useMessageQueue({
   const nextActionTimeRef =
     useRef<number | null>(null);
 
+  /**
+   * Tempo total que a fila ficou pausada.
+   *
+   * É utilizado para que o contador geral
+   * não continue contando enquanto pausado.
+   */
+  const totalPausedTimeRef =
+    useRef(0);
+
+  /**
+   * Momento em que uma pausa começou.
+   */
+  const pauseStartedAtRef =
+    useRef<number | null>(null);
+
   // =========================
-  // PARAR ENVIO
+  // ATUALIZAR CONEXÃO
   // =========================
 
-  function pararEnvio() {
-    stopRequested.current = true;
-
-    /*
-     * O envio atual não é cancelado no meio.
-     * O hook para assim que terminar a operação atual.
-     */
-  }
+  useEffect(() => {
+    connectedRef.current =
+      connected;
+  }, [connected]);
 
   // =========================
   // ESPERA
   // =========================
 
-  function wait(milliseconds: number) {
-    return new Promise<void>((resolve) => {
-      setTimeout(resolve, milliseconds);
-    });
+  function wait(
+    milliseconds: number
+  ) {
+    return new Promise<void>(
+      (resolve) => {
+        setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
   }
 
   // =========================
@@ -115,15 +163,17 @@ export function useMessageQueue({
     min: number,
     max: number
   ) {
-    const safeMin = Math.max(
-      0,
-      Math.floor(min)
-    );
+    const safeMin =
+      Math.max(
+        0,
+        Math.floor(min)
+      );
 
-    const safeMax = Math.max(
-      safeMin,
-      Math.floor(max)
-    );
+    const safeMax =
+      Math.max(
+        safeMin,
+        Math.floor(max)
+      );
 
     return (
       Math.floor(
@@ -133,8 +183,12 @@ export function useMessageQueue({
     );
   }
 
+  // =========================
+  // MODELO SELECIONADO
+  // =========================
 
-  function getSelectedModel(): MessageModel | null {
+  function getSelectedModel():
+    MessageModel | null {
     if (!selectedModelId) {
       return null;
     }
@@ -142,74 +196,50 @@ export function useMessageQueue({
     return (
       models.find(
         (model) =>
-          model.id === selectedModelId
+          model.id ===
+          selectedModelId
       ) ?? null
     );
   }
 
+  // =========================
+  // GERAR MENSAGEM DA VARIANTE
+  // =========================
 
-  // function getRandomVariant(
-  //   model: MessageModel
-  // ) {
-  //   if (
-  //     !model.variantes ||
-  //     model.variantes.length === 0
-  //   ) {
-  //     return null;
-  //   }
+  function getMessageForIndex(
+    index: number
+  ): string {
+    const model =
+      getSelectedModel();
 
-  //   const index = Math.floor(
-  //     Math.random() *
-  //       model.variantes.length
-  //   );
+    /**
+     * Se existe modelo selecionado,
+     * utiliza as variantes de forma
+     * determinística.
+     */
+    if (
+      model &&
+      model.variantes.length > 0
+    ) {
+      const variantIndex =
+        index %
+        model.variantes.length;
 
-  //   return model.variantes[index];
-  // }
+      return model
+        .variantes[variantIndex]
+        .texto.trim();
+    }
 
-
-  // function getMessageFromModel(): string {
-  //   const model =
-  //     getSelectedModel();
-
-  //   if (!model) {
-  //     return "";
-  //   }
-
-  //   const variant =
-  //     getRandomVariant(model);
-
-  //   if (!variant) {
-  //     return "";
-  //   }
-
-  //   return variant.texto.trim();
-  // }
-
-
+    /**
+     * Caso não exista modelo,
+     * utiliza a mensagem digitada.
+     */
+    return message.trim();
+  }
 
   // =========================
   // CALCULAR TEMPO ESTIMADO
   // =========================
-
-
-  // =========================
-// GERAR MENSAGEM DA VARIANTE
-// =========================
-
-function getMessageForIndex(index: number): string {
-  const model = getSelectedModel();
-
-  // Se existe modelo selecionado, usa as variantes
-  if (model && model.variantes.length > 0) {
-    const variantIndex =
-      index % model.variantes.length;
-
-    return model.variantes[variantIndex].texto.trim();
-  }
-
-  // Caso contrário, usa a mensagem digitada
-  return message.trim();
-}
 
   function calculateEstimatedTime(
     totalNumbers: number
@@ -218,29 +248,27 @@ function getMessageForIndex(index: number): string {
       return 0;
     }
 
-    const min = Math.max(
-      0,
-      minIntervalSeconds
-    );
+    const min =
+      Math.max(
+        0,
+        minIntervalSeconds
+      );
 
-    const max = Math.max(
-      min,
-      maxIntervalSeconds
-    );
+    const max =
+      Math.max(
+        min,
+        maxIntervalSeconds
+      );
 
     const averageInterval =
       (min + max) / 2;
 
-    /*
-     * Aqui consideramos que entre cada envio
-     * existe um intervalo, EXCETO quando o envio
-     * anterior é múltiplo de pauseEvery.
-     *
-     * Nesse caso entra a pausa longa.
-     */
-
     let totalTime = 0;
 
+    /**
+     * Entre cada envio existe um intervalo,
+     * exceto quando entra a pausa longa.
+     */
     for (
       let sentCount = 1;
       sentCount < totalNumbers;
@@ -248,19 +276,24 @@ function getMessageForIndex(index: number): string {
     ) {
       if (
         pauseEvery > 0 &&
-        sentCount % pauseEvery === 0
+        sentCount %
+          pauseEvery ===
+          0
       ) {
-        totalTime += Math.max(
-          0,
-          pauseDurationSeconds
-        );
+        totalTime +=
+          Math.max(
+            0,
+            pauseDurationSeconds
+          );
       } else {
         totalTime +=
           averageInterval;
       }
     }
 
-    return Math.ceil(totalTime);
+    return Math.ceil(
+      totalTime
+    );
   }
 
   // =========================
@@ -272,7 +305,8 @@ function getMessageForIndex(index: number): string {
     sentCount: number
   ) {
     const remainingNumbers =
-      totalNumbers - sentCount;
+      totalNumbers -
+      sentCount;
 
     if (
       remainingNumbers <= 0
@@ -280,27 +314,22 @@ function getMessageForIndex(index: number): string {
       return 0;
     }
 
-    const min = Math.max(
-      0,
-      minIntervalSeconds
-    );
+    const min =
+      Math.max(
+        0,
+        minIntervalSeconds
+      );
 
-    const max = Math.max(
-      min,
-      maxIntervalSeconds
-    );
+    const max =
+      Math.max(
+        min,
+        maxIntervalSeconds
+      );
 
     const averageInterval =
       (min + max) / 2;
 
     let totalTime = 0;
-
-    /*
-     * sentCount representa quantas mensagens
-     * já foram enviadas.
-     *
-     * Agora calculamos cada espera futura.
-     */
 
     for (
       let nextSentCount =
@@ -315,17 +344,20 @@ function getMessageForIndex(index: number): string {
           pauseEvery ===
           0
       ) {
-        totalTime += Math.max(
-          0,
-          pauseDurationSeconds
-        );
+        totalTime +=
+          Math.max(
+            0,
+            pauseDurationSeconds
+          );
       } else {
         totalTime +=
           averageInterval;
       }
     }
 
-    return Math.ceil(totalTime);
+    return Math.ceil(
+      totalTime
+    );
   }
 
   // =========================
@@ -335,34 +367,336 @@ function getMessageForIndex(index: number): string {
   function formatTime(
     seconds: number
   ) {
-    const total = Math.max(
-      0,
-      Math.ceil(seconds)
-    );
+    const total =
+      Math.max(
+        0,
+        Math.ceil(seconds)
+      );
 
-    const hours = Math.floor(
-      total / 3600
-    );
+    const hours =
+      Math.floor(
+        total / 3600
+      );
 
-    const minutes = Math.floor(
-      (total % 3600) / 60
-    );
+    const minutes =
+      Math.floor(
+        (total % 3600) / 60
+      );
 
-    const secs = total % 60;
+    const secs =
+      total % 60;
 
     if (hours > 0) {
       return `${hours}h ${minutes
         .toString()
-        .padStart(2, "0")}min`;
+        .padStart(
+          2,
+          "0"
+        )}min`;
     }
 
     if (minutes > 0) {
       return `${minutes}min ${secs
         .toString()
-        .padStart(2, "0")}s`;
+        .padStart(
+          2,
+          "0"
+        )}s`;
     }
 
     return `${secs}s`;
+  }
+
+  // =========================
+  // REGISTRAR PAUSA
+  // =========================
+
+  function iniciarContagemDaPausa() {
+    if (
+      pauseStartedAtRef.current ===
+      null
+    ) {
+      pauseStartedAtRef.current =
+        Date.now();
+    }
+  }
+
+  // =========================
+  // FINALIZAR CONTAGEM DA PAUSA
+  // =========================
+
+  function finalizarContagemDaPausa() {
+    if (
+      pauseStartedAtRef.current !==
+      null
+    ) {
+      totalPausedTimeRef.current +=
+        Date.now() -
+        pauseStartedAtRef.current;
+
+      pauseStartedAtRef.current =
+        null;
+    }
+  }
+
+  // =========================
+  // ESPERAR RETOMADA
+  // =========================
+
+  async function esperarRetomada() {
+    while (
+      pauseRequested.current
+    ) {
+      if (
+        stopRequested.current
+      ) {
+        return;
+      }
+
+      iniciarContagemDaPausa();
+
+      await wait(200);
+    }
+
+    finalizarContagemDaPausa();
+  }
+
+  // =========================
+  // ESPERAR CONEXÃO
+  // =========================
+
+  async function esperarConexao() {
+    let avisouDesconexao =
+      false;
+
+    while (
+      !connectedRef.current
+    ) {
+      if (
+        stopRequested.current
+      ) {
+        return;
+      }
+
+      pauseRequested.current =
+        true;
+
+      setIsPaused(true);
+
+      iniciarContagemDaPausa();
+
+      if (!avisouDesconexao) {
+        setResult(
+          "⚠️ WhatsApp desconectado. Aguardando conexão..."
+        );
+
+        avisouDesconexao = true;
+      }
+
+      await wait(500);
+    }
+
+    if (
+      pauseRequested.current &&
+      avisouDesconexao
+    ) {
+      pauseRequested.current =
+        false;
+
+      finalizarContagemDaPausa();
+
+      setIsPaused(false);
+
+      setResult(
+        "▶️ WhatsApp conectado. Fila retomada."
+      );
+    }
+  }
+
+  // =========================
+  // PAUSAR ENVIO
+  // =========================
+
+  function pausarEnvio() {
+    if (!sending) {
+      return;
+    }
+
+    pauseRequested.current =
+      true;
+
+    iniciarContagemDaPausa();
+
+    setIsPaused(true);
+
+    setResult(
+      "⏸️ Fila pausada."
+    );
+  }
+
+  // =========================
+  // CONTINUAR ENVIO
+  // =========================
+
+  function continuarEnvio() {
+
+    console.log('executou ce')
+    if (!sending) {
+      return;
+    }
+
+     console.log('!sending ce')
+
+    pauseRequested.current =
+      false;
+
+    finalizarContagemDaPausa();
+
+    setIsPaused(false);
+
+    setResult(
+      "▶️ Fila retomada."
+    );
+
+     console.log('ce completo')
+  }
+
+  // =========================
+  // PARAR ENVIO
+  // =========================
+
+  function pararEnvio() {
+    if (!sending) {
+      return;
+    }
+
+    stopRequested.current =
+      true;
+
+    pauseRequested.current =
+      false;
+
+    finalizarContagemDaPausa();
+
+    setIsPaused(false);
+
+    setResult(
+      "⏹️ Encerrando fila..."
+    );
+  }
+
+  // =========================
+  // ESPERAR COM CONTADOR
+  // =========================
+
+  async function esperarComContador(
+    seconds: number
+  ) {
+    if (seconds <= 0) {
+      return;
+    }
+
+    let remaining =
+      seconds;
+
+    while (
+      remaining > 0
+    ) {
+      if (
+        stopRequested.current
+      ) {
+        return;
+      }
+
+      /**
+       * Se estiver pausado,
+       * congela completamente.
+       */
+      await esperarRetomada();
+
+      if (
+        stopRequested.current
+      ) {
+        return;
+      }
+
+      /**
+       * Se o WhatsApp desconectar
+       * durante o intervalo, pausa.
+       */
+      if (
+        !connectedRef.current
+      ) {
+        await esperarConexao();
+
+        if (
+          stopRequested.current
+        ) {
+          return;
+        }
+      }
+
+      const startedAt =
+        Date.now();
+
+      nextActionTimeRef.current =
+        startedAt +
+        remaining * 1000;
+
+      setNextSendSeconds(
+        Math.ceil(remaining)
+      );
+
+      /**
+       * Atualiza a cada 250ms.
+       */
+      await wait(250);
+
+      if (
+        stopRequested.current
+      ) {
+        return;
+      }
+
+      /**
+       * Se pausou durante esses 250ms,
+       * não desconta esse tempo.
+       */
+      if (
+        pauseRequested.current
+      ) {
+        continue;
+      }
+
+      /**
+       * Se desconectou, não desconta
+       * esse período.
+       */
+      if (
+        !connectedRef.current
+      ) {
+        continue;
+      }
+
+      const elapsed =
+        (Date.now() -
+          startedAt) /
+        1000;
+
+      remaining =
+        Math.max(
+          0,
+          remaining -
+            elapsed
+        );
+    }
+
+    nextActionTimeRef.current =
+      null;
+
+    setNextSendSeconds(
+      null
+    );
   }
 
   // =========================
@@ -379,9 +713,17 @@ function getMessageForIndex(index: number): string {
         maxIntervalSeconds ||
       pauseDurationSeconds < 0
     ) {
-      setEstimatedTotalSeconds(0);
-      setRemainingSeconds(0);
-      setEstimatedEndTime(null);
+      setEstimatedTotalSeconds(
+        0
+      );
+
+      setRemainingSeconds(
+        0
+      );
+
+      setEstimatedEndTime(
+        null
+      );
 
       return;
     }
@@ -422,12 +764,15 @@ function getMessageForIndex(index: number): string {
 
   useEffect(() => {
     if (!sending) {
-      if (timerRef.current) {
+      if (
+        timerRef.current
+      ) {
         clearInterval(
           timerRef.current
         );
 
-        timerRef.current = null;
+        timerRef.current =
+          null;
       }
 
       return;
@@ -438,26 +783,47 @@ function getMessageForIndex(index: number): string {
         const now =
           Date.now();
 
-        // =========================
-        // TEMPO DECORRIDO
-        // =========================
-
         if (
           startTimeRef.current
         ) {
-          const elapsed =
-            (
-              now -
-              startTimeRef.current
-            ) / 1000;
+          /**
+           * Tempo total desde o começo.
+           */
+          const totalElapsed =
+            now -
+            startTimeRef.current;
 
-          const elapsedRounded =
-            Math.floor(elapsed);
+          /**
+           * Remove o tempo em que
+           * a fila ficou pausada.
+           */
+          const activeElapsed =
+            Math.max(
+              0,
+              totalElapsed -
+                totalPausedTimeRef.current -
+                (
+                  pauseStartedAtRef.current
+                    ? now -
+                      pauseStartedAtRef.current
+                    : 0
+                )
+            );
+
+          const elapsedSecondsValue =
+            Math.floor(
+              activeElapsed /
+                1000
+            );
 
           setElapsedSeconds(
-            elapsedRounded
+            elapsedSecondsValue
           );
 
+          /**
+           * O tempo restante também
+           * congela durante a pausa.
+           */
           const totalEstimated =
             estimatedTotalSeconds;
 
@@ -465,19 +831,28 @@ function getMessageForIndex(index: number): string {
             Math.max(
               0,
               totalEstimated -
-                elapsedRounded
+                elapsedSecondsValue
             );
 
           setRemainingSeconds(
             remaining
           );
 
-          setEstimatedEndTime(
-            new Date(
-              now +
-                remaining * 1000
-            )
-          );
+          /**
+           * A previsão de término
+           * também fica congelada
+           * durante a pausa.
+           */
+          if (
+            !pauseRequested.current
+          ) {
+            setEstimatedEndTime(
+              new Date(
+                now +
+                  remaining * 1000
+              )
+            );
+          }
         }
 
         // =========================
@@ -487,6 +862,16 @@ function getMessageForIndex(index: number): string {
         if (
           nextActionTimeRef.current
         ) {
+          if (
+            pauseRequested.current
+          ) {
+            /**
+             * Durante a pausa,
+             * mantém o mesmo valor.
+             */
+            return;
+          }
+
           const remaining =
             Math.max(
               0,
@@ -505,12 +890,15 @@ function getMessageForIndex(index: number): string {
       }, 250);
 
     return () => {
-      if (timerRef.current) {
+      if (
+        timerRef.current
+      ) {
         clearInterval(
           timerRef.current
         );
 
-        timerRef.current = null;
+        timerRef.current =
+          null;
       }
     };
   }, [
@@ -518,36 +906,9 @@ function getMessageForIndex(index: number): string {
     estimatedTotalSeconds,
   ]);
 
-  // =========================
-  // ESPERAR COM CONTADOR
-  // =========================
-
-  async function esperarComContador(seconds: number) {
-    if (seconds <= 0) {
-      return;
-    }
-
-    const milliseconds =
-      seconds * 1000;
-
-    nextActionTimeRef.current =
-      Date.now() +
-      milliseconds;
-
-    setNextSendSeconds(
-      seconds
-    );
-
-    await wait(
-      milliseconds
-    );
-
-    nextActionTimeRef.current =
-      null;
-
-    setNextSendSeconds(
-      null
-    );
+  function clearResults() {
+    setSendResults([])
+    setCurrentIndex(0)
   }
 
   // =========================
@@ -559,7 +920,7 @@ function getMessageForIndex(index: number): string {
     // VALIDAÇÕES
     // =========================
 
-    if (!connected) {
+    if (!connectedRef.current) {
       setResult(
         "❌ WhatsApp não conectado."
       );
@@ -567,38 +928,15 @@ function getMessageForIndex(index: number): string {
       return;
     }
 
-    if (numbers.length === 0) {
+    if (
+      numbers.length === 0
+    ) {
       setResult(
         "❌ Adicione pelo menos um número."
       );
 
       return;
     }
-
-    
-    
-
-    // const selectedModel =
-    //   getSelectedModel();
-
-    // if (!selectedModel) {
-    //   setResult(
-    //     "❌ O modelo selecionado não foi encontrado."
-    //   );
-
-    //   return;
-    // }
-
-    // if (
-    //   !selectedModel.variantes ||
-    //   selectedModel.variantes.length === 0
-    // ) {
-    //   setResult(
-    //     "❌ O modelo selecionado não possui variantes."
-    //   );
-
-    //   return;
-    // }
 
     if (
       minIntervalSeconds < 0 ||
@@ -622,7 +960,9 @@ function getMessageForIndex(index: number): string {
       return;
     }
 
-    if (pauseEvery < 1) {
+    if (
+      pauseEvery < 1
+    ) {
       setResult(
         "❌ A pausa deve acontecer após pelo menos 1 envio."
       );
@@ -641,13 +981,34 @@ function getMessageForIndex(index: number): string {
     }
 
     // =========================
-    // INICIA
+    // INICIA NOVA FILA
     // =========================
 
     setSending(true);
-    setResult("");
-    setSendResults([]); 
 
+    setResult("");
+
+    setSendResults([]);
+
+    /**
+     * Sempre que enviarFila()
+     * for chamado, começa uma
+     * fila nova.
+     */
+    queueIndexRef.current =
+      0;
+
+    stopRequested.current =
+      false;
+
+    pauseRequested.current =
+      false;
+
+    totalPausedTimeRef.current =
+      0;
+
+    pauseStartedAtRef.current =
+      null;
 
     setCurrentIndex(0);
 
@@ -661,11 +1022,11 @@ function getMessageForIndex(index: number): string {
 
     setCurrentMessage("");
 
-    stopRequested.current =
-      false;
-
     startTimeRef.current =
       Date.now();
+
+    nextActionTimeRef.current =
+      null;
 
     // =========================
     // ESTIMATIVA INICIAL
@@ -687,130 +1048,229 @@ function getMessageForIndex(index: number): string {
     setEstimatedEndTime(
       new Date(
         Date.now() +
-          initialEstimate *
-            1000
+          initialEstimate * 1000
       )
     );
 
     // =========================
+    // PREPARAR ANEXO
+    // =========================
+
+    let attachmentData:
+      | {
+          type:
+            | "image"
+            | "video"
+            | "audio"
+            | "document";
+
+          buffer: ArrayBuffer;
+
+          fileName: string;
+
+          mimetype: string;
+        }
+      | undefined;
+
+    if (attachment) {
+      attachmentData = {
+        type: attachment.type,
+
+        buffer:
+          await attachment.file.arrayBuffer(),
+
+        fileName:
+          attachment.file.name,
+
+        mimetype:
+          attachment.file.type,
+      };
+    }
+
+    // =========================
     // PROCESSA FILA
     // =========================
-   let attachmentData:
-  | {
-      type: "image" | "video" | "audio" | "document";
-      buffer: ArrayBuffer;
-      fileName: string;
-      mimetype: string;
-    }
-  | undefined;
 
-if (attachment) {
-  attachmentData = {
-    type: attachment.type,
-    buffer: await attachment.file.arrayBuffer(),
-    fileName: attachment.file.name,
-    mimetype: attachment.file.type,
-  };
-}
+    while (
+      queueIndexRef.current <
+      numbers.length
+    ) {
+      // =========================
+      // PARAR
+      // =========================
 
-for (
-  let index = 0;
-  index < numbers.length;
-  index++
-) {
-  // =========================
-  // PARAR
-  // =========================
+      if (
+        stopRequested.current
+      ) {
+        break;
+      }
 
-  if (stopRequested.current) {
-    break;
-  }
+      // =========================
+      // PAUSAR
+      // =========================
 
-   if (!connected) {
-    setResult(
-      "⚠️ WhatsApp desconectado. Fila pausada."
-    );
+      await esperarRetomada();
 
-    setIsPaused(true);
+      if (
+        stopRequested.current
+      ) {
+        break;
+      }
 
-    break;
-  }
+      // =========================
+      // CONEXÃO
+      // =========================
 
-  const number = numbers[index];
+      if (
+        !connectedRef.current
+      ) {
+        await esperarConexao();
+      }
 
-  // =========================
-  // ESCOLHER VARIANTE
-  // =========================
+      if (
+        stopRequested.current
+      ) {
+        break;
+      }
 
-  const messageToSend =
-    getMessageForIndex(index);
+      // =========================
+      // ÍNDICE ATUAL
+      // =========================
 
-  // Permite texto vazio quando existe anexo
-  if (
-    !messageToSend &&
-    !attachmentData
-  ) {
-    setResult(
-      "❌ Digite uma mensagem ou selecione um anexo."
-    );
-    break;
-  }
+      const index =
+        queueIndexRef.current;
 
-  setCurrentMessage(
-    messageToSend ?? ""
-  );
+      const number =
+        numbers[index];
 
-  // =========================
-  // ENVIO
-  // =========================
+      // =========================
+      // ESCOLHER MENSAGEM
+      // =========================
 
-  try {
-    await window.whatsapp.enviarMensagem(
-      number,
-      messageToSend ?? "",
-      attachmentData,
-    );
+      const messageToSend =
+        getMessageForIndex(
+          index
+        );
 
-    setSendResults((prev) => [
-      ...prev,
-      {
-        number,
-        status: "success",
-        sentAt: new Date(),
-        messageToSend:
-          messageToSend ?? "",
-      },
-    ]);
+      /**
+       * Permite texto vazio
+       * quando existe anexo.
+       */
+      if (
+        !messageToSend &&
+        !attachmentData
+      ) {
+        setResult(
+          "❌ Digite uma mensagem ou selecione um anexo."
+        );
 
-    console.log(
-      `Mensagem enviada para ${number}`
-    );
+        break;
+      }
 
-  } catch (error) {
-    setSendResults((prev) => [
-      ...prev,
-      {
-        number,
-        status: "failed",
-        sentAt: new Date(),
-        messageToSend:
-          messageToSend ?? "",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Erro desconhecido",
-      },
-    ]);
+      setCurrentMessage(
+        messageToSend
+      );
 
-    console.error(
-      `Erro ao enviar para ${number}:`,
-      error
-    );
-  }
+      // =========================
+      // ENVIO
+      // =========================
 
-    const sentCount = index + 1;
+      try {
+        /**
+         * Verifica novamente antes
+         * de enviar.
+         */
+        if (
+          !connectedRef.current
+        ) {
+          await esperarConexao();
 
-      setCurrentIndex(sentCount);
+          if (
+            stopRequested.current
+          ) {
+            break;
+          }
+        }
+
+        /**
+         * Se o usuário pausou exatamente
+         * antes do envio, espera.
+         */
+        await esperarRetomada();
+
+        if (
+          stopRequested.current
+        ) {
+          break;
+        }
+
+        await window.whatsapp.enviarMensagem(
+          number,
+          messageToSend,
+          attachmentData
+        );
+
+        setSendResults(
+          (prev) => [
+            ...prev,
+            {
+              number,
+
+              status:
+                "success",
+
+              sentAt:
+                new Date(),
+
+              messageToSend,
+            },
+          ]
+        );
+
+        console.log(
+          `Mensagem enviada para ${number}`
+        );
+      } catch (error) {
+        setSendResults(
+          (prev) => [
+            ...prev,
+            {
+              number,
+
+              status:
+                "failed",
+
+              sentAt:
+                new Date(),
+
+              messageToSend,
+
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Erro desconhecido",
+            },
+          ]
+        );
+
+        console.error(
+          `Erro ao enviar para ${number}:`,
+          error
+        );
+      }
+
+      // =========================
+      // AVANÇA FILA
+      // =========================
+
+      queueIndexRef.current++;
+
+      const sentCount =
+        queueIndexRef.current;
+
+      setCurrentIndex(
+        sentCount
+      );
 
       // =========================
       // ATUALIZA ESTIMATIVA
@@ -826,13 +1286,22 @@ for (
         estimatedRemaining
       );
 
-      setEstimatedEndTime(
-        new Date(
-          Date.now() +
-            estimatedRemaining *
-              1000
-        )
-      );
+      /**
+       * Se estiver pausado,
+       * a previsão não precisa
+       * ficar avançando.
+       */
+      if (
+        !pauseRequested.current
+      ) {
+        setEstimatedEndTime(
+          new Date(
+            Date.now() +
+              estimatedRemaining *
+                1000
+          )
+        );
+      }
 
       // =========================
       // PARAR
@@ -855,13 +1324,16 @@ for (
         sentCount <
           numbers.length
       ) {
+        /**
+         * Essa pausa é a pausa
+         * automática configurada
+         * pelo usuário.
+         */
         setIsPaused(true);
 
         await esperarComContador(
           pauseDurationSeconds
         );
-
-        setIsPaused(false);
 
         if (
           stopRequested.current
@@ -869,13 +1341,23 @@ for (
           break;
         }
 
-        if (!connected) {
-  setResult(
-    "⚠️ WhatsApp desconectado. Fila pausada.")
-    setIsPaused(true);
-    break;
-  ;}
+        if (
+          !connectedRef.current
+        ) {
+          await esperarConexao();
+        }
 
+        if (
+          stopRequested.current
+        ) {
+          break;
+        }
+
+        if (
+          !pauseRequested.current
+        ) {
+          setIsPaused(false);
+        }
       }
 
       // =========================
@@ -883,8 +1365,8 @@ for (
       // =========================
 
       else if (
-        index <
-        numbers.length - 1
+        sentCount <
+        numbers.length
       ) {
         const interval =
           randomInterval(
@@ -905,19 +1387,21 @@ for (
         ) {
           break;
         }
-
-        
-
       }
     }
 
     // =========================
-    // FINALIZA
+    // FINALIZAÇÃO
     // =========================
+
+    finalizarContagemDaPausa();
 
     setSending(false);
 
     setIsPaused(false);
+
+    pauseRequested.current =
+      false;
 
     setNextSendSeconds(
       null
@@ -929,13 +1413,28 @@ for (
     nextActionTimeRef.current =
       null;
 
+    // =========================
+    // RESULTADO
+    // =========================
+
     if (
-      stopRequested.current
+      queueIndexRef.current <
+      numbers.length
     ) {
+      /**
+       * Não completou a fila.
+       * Normalmente significa que
+       * o usuário clicou em PARAR
+       * ou houve algum erro de
+       * validação durante a execução.
+       */
       setResult(
         "⏹️ Fila interrompida."
       );
     } else {
+      /**
+       * Fila completa.
+       */
       setCurrentIndex(
         numbers.length
       );
@@ -950,6 +1449,14 @@ for (
         "✅ Fila finalizada."
       );
     }
+
+    /**
+     * Importante:
+     * só resetamos stopRequested
+     * depois de toda a finalização.
+     */
+    stopRequested.current =
+      false;
   }
 
   // =========================
@@ -981,10 +1488,14 @@ for (
 
     enviarFila,
 
+    pausarEnvio,
+
+    continuarEnvio,
+
     pararEnvio,
 
     sendResults,
 
+    clearResults
   };
 }
-

@@ -1,4 +1,4 @@
-import { Pause } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 
 import type { SendResult } from "../../../types/sendResult";
 
@@ -19,6 +19,8 @@ type Props = {
   sendResults: SendResult[];
   formatTime: (seconds: number) => string;
   onStop: () => void;
+  continuarEnvio: () => void;
+  numbers: string[]
 };
 
 export default function QueueProgress({
@@ -34,11 +36,13 @@ export default function QueueProgress({
   formatTime,
   onStop,
   sendResults,
+  continuarEnvio,
+  numbers
 }: Props) {
 
-   if (total === 0) {
-     return null;
-   }
+  if (total === 0) {
+    return null;
+  }
 
   // Quantidade de mensagens já processadas.
   const processed = Math.min(
@@ -70,7 +74,7 @@ export default function QueueProgress({
   return (
     <section className="mt-5 rounded-lg border border-gray-300 p-3.75">
 
-        <h2 className="mb-3 text-xl font-semibold">
+      <h2 className="mb-3 text-xl font-semibold">
         Progresso
       </h2>
 
@@ -93,14 +97,26 @@ export default function QueueProgress({
             />
           </div>
 
-          <Button
-            variant="secondary"
-            onClick={onStop}
-            className="font-bold"
-            disabled={!sending}
-          >
-            <Pause /> Parar
-          </Button>
+          {sending && !isPaused && (
+            <Button
+              variant="secondary"
+              onClick={onStop}
+              className="font-bold"
+            >
+              <Pause />
+            </Button>
+          )}
+
+          {sending && isPaused && (
+            <Button
+              variant="secondary"
+              onClick={continuarEnvio}
+              className="font-bold"
+            >
+              <Play />
+            </Button>
+          )}
+
 
 
         </div>
@@ -124,7 +140,7 @@ export default function QueueProgress({
 
 
 
-          {sendResults.length > 0 && (
+          {sendResults.length > 0 && numbers.length>0 && (
             <>
               <p>
                 ✅{" "}
@@ -201,18 +217,11 @@ export default function QueueProgress({
             </p>
           )}
 
-          <Button
-            variant="secondary"
-            onClick={onStop}
-            className="font-bold"
-          >
-            <Pause /> Parar envio
-          </Button>
         </>
       )}
 
-      {sendResults.length > 0 && !sending &&
-        <ExportReportButton results={sendResults} className='mt-2 w-full' />
+      {sendResults.length > 0 && (isPaused || !sending) &&
+        <ExportReportButton results={sendResults} numbers={numbers} className='mt-2 w-full' />
       }
     </section>
   );

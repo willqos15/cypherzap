@@ -5,15 +5,19 @@ type NumberComposeProps = {
     numbers: string[];
     setNumbers: (numbers: string[]) => void;
     disabled?: boolean;
+    onClearNumbers: () => void;
+
 };
 
-export default function NumberCompose({ numbers, setNumbers, disabled }: NumberComposeProps) {
+export default function NumberCompose({ numbers, setNumbers, disabled, onClearNumbers}: NumberComposeProps) {
 
     
     return (<>
         <ExcelImportNumber
             numbers={numbers}
             onNumbersChange={setNumbers}
+            onClearNumbers={onClearNumbers}
+
         />
 
         <NumberInput

@@ -57,13 +57,14 @@ function AppContent() {
           onClick={() => setModo("grupos")}
           disabled={sending}
         >
-          Modo Grupos
+          Modo Extração
         </Button>
       </div>
 
       <div className={modo === "envio" ? "block" : "hidden"}>
         <PageMain
           setSending={setSending}
+          sending={sending}
           autorizado={autorizado}
         />
       </div>

@@ -40,6 +40,8 @@ function createWindow() {
     }
   });
 
+  mainWindow.webContents.openDevTools();
+
   if (!app.isPackaged) {
     mainWindow.loadURL("http://localhost:5173");
   } else {

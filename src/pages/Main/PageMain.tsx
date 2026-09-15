@@ -18,18 +18,21 @@ import { Button } from "#components/ui/button";
 import type { MessageAttachmentData } from "../../types/Attachment";
 import { useWhatsApp } from "../../context/WhatsAppContext";
 import NumberCompose from "./_components/NumberPhone/NumberCompose";
+import CancelSendDialog from "./_components/CancelSendDialog";
 
 
 interface InterfacePageMain {
   setSending: React.Dispatch<React.SetStateAction<boolean>>;
   autorizado: boolean;
+  sending: boolean;
 }
-export default function PageMain({ setSending, autorizado }: InterfacePageMain) {
+export default function PageMain({ setSending, sending, autorizado }: InterfacePageMain) {
 
   const {
     connected,
     disconnecting,
   } = useWhatsApp();
+
 
   const [numbers, setNumbers] = useState<string[]>([]);
   const [message, setMessage] = useState("");
@@ -38,6 +41,7 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
   const [models, setModels] = useState<MessageModel[]>(
     []
   );
+
 
   const [attachment, setAttachment] =
     useState<MessageAttachmentData | null>(null);
@@ -74,6 +78,7 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
   ] = useState(60);
 
 
+
   const queue = useMessageQueue({
     numbers,
     connected,
@@ -93,18 +98,33 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
 
   const styleSection = "bg-white border-gray-300 border-2 rounded-lg p-4 flex flex-col gap-4 mt-5"
 
+  const limparLista = () => {
+  setNumbers([]);
+  queue.clearResults();
+};
+
+useEffect(()=>{
+
+  if(numbers.length===0) {
+    queue.clearResults();
+  }
+}
+,[numbers])
+
   return (
     <>
- 
+
       <Toaster />
       <main className="relative w-full my-10 mx-auto px-10">
 
-        <div className= {`${(!connected || disconnecting || !autorizado) && "pointer-events-none opacity-50"}`}>
+        <div className={`${(!connected || disconnecting || !autorizado || sending) && "pointer-events-none opacity-50"}`}>
 
           <section className={`${styleSection}`}>
 
-            <NumberCompose  numbers={numbers}
-              setNumbers={setNumbers}  disabled={queue.sending}/>
+            <NumberCompose numbers={numbers}
+            onClearNumbers={limparLista}
+              setNumbers={setNumbers}
+              disabled={queue.sending} />
 
           </section>
 
@@ -152,29 +172,34 @@ export default function PageMain({ setSending, autorizado }: InterfacePageMain) 
           nextSendSeconds={queue.nextSendSeconds}
           isPaused={queue.isPaused}
           formatTime={queue.formatTime}
-          onStop={queue.pararEnvio}
+          onStop={queue.pausarEnvio}
           sendResults={queue.sendResults}
+          continuarEnvio={queue.continuarEnvio}
+          numbers={numbers}
         />
 
 
-        <Button
-          type="button"
-          variant="secondary"
-          className="mt-5 w-full"
-          onClick={queue.enviarFila}
-          disabled={
-            queue.sending ||
-            !connected ||
-            numbers.length === 0 ||
-            (message.trim().length <= 0 && !attachment)
-          }
-        >
-          {queue.sending
-            ? "Enviando..."
-            : <> <Send /> Enviar mensagens</>}
-        </Button>
+        {queue.sending ? (
+          <CancelSendDialog
+            onConfirm={queue.pararEnvio}
+          />
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-5 w-full"
+            onClick={queue.enviarFila}
+            disabled={
+              !connected ||
+              numbers.length === 0 ||
+              (message.trim().length <= 0 && !attachment)
+            }
+          >
+            <Send /> Enviar mensagens
+          </Button>
+        )}
 
-        
+
 
 
 

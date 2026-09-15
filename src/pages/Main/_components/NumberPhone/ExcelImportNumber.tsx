@@ -10,16 +10,19 @@ import { normalizePhone } from "#lib/utils";
 
 type ExcelImportProps = {
   numbers: string[];
-
   onNumbersChange: (numbers: string[]) => void;
+  onClearNumbers: () => void;
 };
 
 type ExcelRow = unknown[];
 
 export default function ExcelImportNumber({
   numbers,
-  onNumbersChange,
+  onNumbersChange, onClearNumbers
 }: ExcelImportProps) {
+
+  
+
   const [loading, setLoading] = useState(false);
 
   const [result, setResult] = useState("");
@@ -27,48 +30,23 @@ export default function ExcelImportNumber({
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
 
-  /*
-   * Guarda apenas os números adicionados
-   * pela importação atual.
-   *
-   * Isso permite trocar de coluna sem apagar
-   * números adicionados manualmente.
-   */
+
   const [importedNumbers, setImportedNumbers] =
     useState<string[]>([]);
 
-  /*
-   * Cabeçalhos encontrados no Excel.
-   */
+
   const [headers, setHeaders] = useState<string[]>([]);
 
-  /*
-   * Todas as linhas do Excel.
-   */
   const [excelRows, setExcelRows] =
     useState<ExcelRow[]>([]);
 
-  /*
-   * Índice da coluna atualmente selecionada.
-   */
   const [selectedColumn, setSelectedColumn] =
     useState("");
 
   const fileInputRef =
     useRef<HTMLInputElement>(null);
 
-  /*
-   * ==========================================
-   * NORMALIZA O NOME DO CABEÇALHO
-   * ==========================================
-   *
-   * Exemplos:
-   *
-   * NÚMERO -> numero
-   * Número -> numero
-   * NUMEROS -> numeros
-   * CONTATOS -> contatos
-   */
+
   function normalizeHeader(value: unknown) {
     return String(value)
       .trim()
@@ -77,11 +55,7 @@ export default function ExcelImportNumber({
       .replace(/[\u0300-\u036f]/g, "");
   }
 
-  /*
-   * ==========================================
-   * PALAVRAS-CHAVE PARA DETECTAR A COLUNA
-   * ==========================================
-   */
+
   function isPhoneColumn(header: unknown) {
     const normalized = normalizeHeader(header);
 
@@ -525,6 +499,7 @@ export default function ExcelImportNumber({
   }
 
   return (
+    <>
     <section className="flex flex-wrap justify-between items-center">
 
 
@@ -603,7 +578,23 @@ export default function ExcelImportNumber({
       
       {/* LOADING */}
 
-      {loading && (
+     
+      </div>
+
+  {numbers.length>0 &&
+       <Button variant="ghost"
+        className=""
+        onClick={() => {
+          onClearNumbers();
+          setSelectedFile(null)
+          setResult('')
+        }}>
+        <Trash />
+      </Button>
+      }
+    </section>
+
+     {loading && (
         <p className="px-1 text-sm text-gray-700">
           Importando números...
         </p>
@@ -616,17 +607,7 @@ export default function ExcelImportNumber({
           {result}
         </p>
       )}
-      </div>
 
-  {numbers.length>0 &&
-       <Button variant="ghost"
-        className=""
-        onClick={() => {onNumbersChange([])
-          setSelectedFile(null)
-        }}>
-        <Trash />
-      </Button>
-      }
-    </section>
+      </>
   );
 }

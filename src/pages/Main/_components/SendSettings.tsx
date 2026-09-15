@@ -103,7 +103,7 @@ export function SendSettings({
                     Configurações do envio
                 </h2>
 
-                <div className="flex gap-10">
+                <div className="flex gap-10 flex-wrap">
                     <div className="flex flex-col gap-2 border-gray-300 border-2 rounded-lg p-4">
                         <h3 className="text-lg font-semibold">
                             Intervalo entre cada mensagem
