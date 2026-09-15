@@ -18,10 +18,15 @@ type ExcelRow = unknown[];
 
 export default function ExcelImportNumber({
   numbers,
-  onNumbersChange, onClearNumbers
+  onNumbersChange,
+  onClearNumbers,
 }: ExcelImportProps) {
+  const [statusColumnIndex, setStatusColumnIndex] =
+    useState<number | null>(null);
 
-  
+  const [onlyFailures, setOnlyFailures] = useState(false);
+
+  const [hasFailures, setHasFailures] = useState(false);
 
   const [loading, setLoading] = useState(false);
 
@@ -30,10 +35,8 @@ export default function ExcelImportNumber({
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
 
-
   const [importedNumbers, setImportedNumbers] =
     useState<string[]>([]);
-
 
   const [headers, setHeaders] = useState<string[]>([]);
 
@@ -46,7 +49,6 @@ export default function ExcelImportNumber({
   const fileInputRef =
     useRef<HTMLInputElement>(null);
 
-
   function normalizeHeader(value: unknown) {
     return String(value)
       .trim()
@@ -54,7 +56,6 @@ export default function ExcelImportNumber({
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
   }
-
 
   function isPhoneColumn(header: unknown) {
     const normalized = normalizeHeader(header);
@@ -80,11 +81,8 @@ export default function ExcelImportNumber({
    * ==========================================
    * REMOVE A IMPORTAÇÃO ANTERIOR
    * ==========================================
-   *
-   * Quando o usuário troca a coluna,
-   * os números importados anteriormente
-   * precisam sair da lista.
    */
+
   function getNumbersWithoutPreviousImport() {
     const previousImportedSet = new Set(
       importedNumbers.map((number) =>
@@ -104,21 +102,24 @@ export default function ExcelImportNumber({
    * PROCESSA UMA COLUNA DO EXCEL
    * ==========================================
    */
+
   function importNumbersFromColumn(
     columnIndex: number,
-    rows: ExcelRow[]
+    rows: ExcelRow[],
+    filterFailures = onlyFailures,
+    statusIndex = statusColumnIndex
   ) {
     /*
-     * Remove somente os números que vieram
-     * da importação anterior.
+     * Remove os números da importação anterior.
      */
+
     const baseNumbers =
       getNumbersWithoutPreviousImport();
 
     /*
-     * Números que já existiam antes
-     * da importação atual.
+     * Números que já existiam antes da importação.
      */
+
     const existingNumbers = new Set(
       baseNumbers
         .map((number) =>
@@ -128,8 +129,9 @@ export default function ExcelImportNumber({
     );
 
     /*
-     * Números encontrados nesta nova coluna.
+     * Números encontrados na nova importação.
      */
+
     const importedSet = new Set<string>();
 
     const newImportedNumbers: string[] = [];
@@ -140,8 +142,9 @@ export default function ExcelImportNumber({
 
     /*
      * Começa em 1 porque a linha 0
-     * é o cabeçalho.
+     * contém os cabeçalhos.
      */
+
     for (
       let rowIndex = 1;
       rowIndex < rows.length;
@@ -153,11 +156,37 @@ export default function ExcelImportNumber({
         continue;
       }
 
+      /*
+       * ==========================================
+       * FILTRO: APENAS FALHAS
+       * ==========================================
+       */
+
+      if (
+        filterFailures &&
+        statusIndex !== null
+      ) {
+        const status = normalizeHeader(
+          row[statusIndex]
+        );
+
+        if (status !== "falha") {
+          continue;
+        }
+      }
+
+      /*
+       * ==========================================
+       * PEGA O NÚMERO
+       * ==========================================
+       */
+
       const cell = row[columnIndex];
 
       /*
        * Célula vazia não é inválida.
        */
+
       if (
         cell === null ||
         cell === undefined ||
@@ -166,15 +195,16 @@ export default function ExcelImportNumber({
         continue;
       }
 
-      const normalized = normalizePhone(cell);
+      const normalized =
+        normalizePhone(cell);
 
       /*
        * Se não conseguiu normalizar,
        * considera inválido.
        */
+
       if (!normalized) {
         invalid++;
-
         continue;
       }
 
@@ -182,9 +212,9 @@ export default function ExcelImportNumber({
        * Já existe na lista antes
        * da importação.
        */
+
       if (existingNumbers.has(normalized)) {
         duplicates++;
-
         continue;
       }
 
@@ -192,9 +222,9 @@ export default function ExcelImportNumber({
        * Está repetido dentro
        * do próprio Excel.
        */
+
       if (importedSet.has(normalized)) {
         duplicates++;
-
         continue;
       }
 
@@ -206,12 +236,12 @@ export default function ExcelImportNumber({
        * Fixo: 12 dígitos
        * Celular: 13 dígitos
        */
+
       if (
         normalized.length !== 12 &&
         normalized.length !== 13
       ) {
         invalid++;
-
         continue;
       }
 
@@ -222,13 +252,8 @@ export default function ExcelImportNumber({
 
     /*
      * Atualiza a lista principal.
-     *
-     * Mantém:
-     * - números adicionados manualmente
-     *
-     * Troca:
-     * - números da importação anterior
      */
+
     onNumbersChange([
       ...baseNumbers,
       ...newImportedNumbers,
@@ -237,11 +262,13 @@ export default function ExcelImportNumber({
     /*
      * Guarda a nova importação.
      */
+
     setImportedNumbers(newImportedNumbers);
 
     /*
      * Mostra resultado.
      */
+
     if (newImportedNumbers.length === 0) {
       setResult(
         `⚠️ Nenhum novo número encontrado. ` +
@@ -272,6 +299,7 @@ export default function ExcelImportNumber({
    * IMPORTAÇÃO DO ARQUIVO
    * ==========================================
    */
+
   async function handleFileChange(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
@@ -291,6 +319,7 @@ export default function ExcelImportNumber({
       /*
        * Limpa dados da importação anterior.
        */
+
       setImportedNumbers([]);
 
       setHeaders([]);
@@ -299,7 +328,16 @@ export default function ExcelImportNumber({
 
       setSelectedColumn("");
 
-      const buffer = await file.arrayBuffer();
+      setStatusColumnIndex(null);
+
+      setOnlyFailures(false);
+
+      /*
+       * Lê o arquivo.
+       */
+
+      const buffer =
+        await file.arrayBuffer();
 
       const workbook = XLSX.read(buffer, {
         type: "array",
@@ -337,6 +375,7 @@ export default function ExcelImportNumber({
       /*
        * Primeira linha = cabeçalhos.
        */
+
       const headerRow = rows[0];
 
       if (!Array.isArray(headerRow)) {
@@ -349,34 +388,82 @@ export default function ExcelImportNumber({
        * Cria os nomes que aparecerão
        * dentro do select.
        */
-      const columnHeaders = headerRow.map(
-        (header, index) => {
-          const value = String(header).trim();
 
-          /*
-           * Caso exista uma coluna sem nome.
-           */
-          return value || `Coluna ${index + 1}`;
-        }
-      );
+      const columnHeaders =
+        headerRow.map(
+          (header, index) => {
+            const value =
+              String(header).trim();
+
+            return (
+              value ||
+              `Coluna ${index + 1}`
+            );
+          }
+        );
+
+      /*
+       * ==========================================
+       * PROCURA A COLUNA STATUS
+       * ==========================================
+       */
+
+      const detectedStatusColumnIndex =
+        headerRow.findIndex(
+          (header) =>
+            normalizeHeader(header) ===
+            "status"
+        );
+
+      const detectedStatusIndex =
+  detectedStatusColumnIndex !== -1
+    ? detectedStatusColumnIndex
+    : null;
+
+setStatusColumnIndex(
+  detectedStatusIndex
+);
+
+const hasStatusFailures =
+  detectedStatusIndex !== null &&
+  rows.slice(1).some((row) => {
+    if (!Array.isArray(row)) {
+      return false;
+    }
+
+    return (
+      normalizeHeader(
+        row[detectedStatusIndex]
+      ) === "falha"
+    );
+  });
+
+setHasFailures(hasStatusFailures);
+setOnlyFailures(false);
 
       /*
        * Guarda o Excel inteiro.
        */
+
       setExcelRows(rows);
 
       /*
        * Guarda os cabeçalhos.
        */
+
       setHeaders(columnHeaders);
 
       /*
-       * ========================================
+       * ==========================================
        * PROCURA AUTOMATICAMENTE A COLUNA
-       * ========================================
+       * DE TELEFONE
+       * ==========================================
        */
+
       const detectedColumnIndex =
-        headerRow.findIndex(isPhoneColumn);
+        headerRow.findIndex(
+          isPhoneColumn
+        );
 
       /*
        * Se encontrou uma coluna conhecida:
@@ -384,6 +471,7 @@ export default function ExcelImportNumber({
        * - seleciona automaticamente
        * - importa os números
        */
+
       if (detectedColumnIndex !== -1) {
         setSelectedColumn(
           String(detectedColumnIndex)
@@ -391,19 +479,20 @@ export default function ExcelImportNumber({
 
         importNumbersFromColumn(
           detectedColumnIndex,
-          rows
+          rows,
+          false,
+          detectedStatusIndex
         );
 
         return;
       }
 
       /*
-       * ========================================
+       * ==========================================
        * NÃO ENCONTROU NENHUM NOME CONHECIDO
-       * ========================================
-       *
-       * Mostra o select para o usuário escolher.
+       * ==========================================
        */
+
       setResult(
         "⚠️ Não encontrei automaticamente uma coluna de contatos. Selecione uma coluna."
       );
@@ -425,6 +514,7 @@ export default function ExcelImportNumber({
        * Permite selecionar novamente
        * o mesmo arquivo.
        */
+
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -436,6 +526,7 @@ export default function ExcelImportNumber({
    * USUÁRIO TROCOU A COLUNA
    * ==========================================
    */
+
   function handleColumnChange(
     event: React.ChangeEvent<HTMLSelectElement>
   ) {
@@ -447,7 +538,11 @@ export default function ExcelImportNumber({
 
     /*
      * Reprocessa usando a nova coluna.
+     *
+     * O filtro "Apenas falhas" continua
+     * com o estado atual.
      */
+
     importNumbersFromColumn(
       columnIndex,
       excelRows
@@ -459,6 +554,7 @@ export default function ExcelImportNumber({
    * CANCELAR IMPORTAÇÃO
    * ==========================================
    */
+
   function handleCancelImport() {
     if (importedNumbers.length === 0) {
       return;
@@ -470,16 +566,19 @@ export default function ExcelImportNumber({
       )
     );
 
-    const remainingNumbers = numbers.filter(
-      (number) => {
+    const remainingNumbers =
+      numbers.filter((number) => {
         const normalized =
           normalizePhone(number);
 
-        return !importedSet.has(normalized);
-      }
-    );
+        return !importedSet.has(
+          normalized
+        );
+      });
 
-    onNumbersChange(remainingNumbers);
+    onNumbersChange(
+      remainingNumbers
+    );
 
     setImportedNumbers([]);
 
@@ -489,9 +588,15 @@ export default function ExcelImportNumber({
 
     setExcelRows([]);
 
+    setOnlyFailures(false);
+
+    setStatusColumnIndex(null);
+
     setSelectedColumn("");
 
-    setResult("Importação cancelada.");
+    setResult(
+      "Importação cancelada."
+    );
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -500,101 +605,125 @@ export default function ExcelImportNumber({
 
   return (
     <>
-    <section className="flex flex-wrap justify-between items-center">
+      <section className="flex flex-wrap justify-between items-center">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* INPUT ESCONDIDO */}
 
-
-      <div className="flex flex-wrap items-center gap-2">
-      {/* INPUT ESCONDIDO */}
-      <input
-        className="hidden"
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        onChange={handleFileChange}
-        disabled={loading}
-      />
-
-      {/* BOTÃO IMPORTAR */}
-
-      <Button
-        variant="secondary"
-        type="button"
-        onClick={() =>
-          fileInputRef.current?.click()
-        }
-        disabled={loading}
-        className="rounded-md border px-4 py-2 disabled:opacity-50"
-      >
-        <Contact />
-
-        {selectedFile
-          ? selectedFile.name
-          : "Importar Lista de Números"}
-      </Button>
-
-
-      {/* CANCELAR */}
-
-      {selectedFile &&
-        importedNumbers.length > 0 && (
-          <Button
-            variant="delete"
-            type="button"
-            onClick={handleCancelImport}
+          <input
+            className="hidden"
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleFileChange}
             disabled={loading}
+          />
+
+          {/* BOTÃO IMPORTAR */}
+
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() =>
+              fileInputRef.current?.click()
+            }
+            disabled={loading}
+            className="rounded-md border px-4 py-2 disabled:opacity-50"
           >
-            <X />
+            <Contact />
+
+            {selectedFile
+              ? selectedFile.name
+              : "Importar Lista de Números"}
+          </Button>
+
+          {/* CANCELAR */}
+
+          {selectedFile &&
+            importedNumbers.length > 0 && (
+              <Button
+                variant="delete"
+                type="button"
+                onClick={
+                  handleCancelImport
+                }
+                disabled={loading}
+              >
+                <X />
+              </Button>
+            )}
+
+          {/* SELECT DAS COLUNAS */}
+
+          {selectedFile &&
+            headers.length > 0 && (
+              <select
+                value={selectedColumn}
+                onChange={
+                  handleColumnChange
+                }
+                disabled={loading}
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+              >
+                <option
+                  value=""
+                  disabled
+                >
+                  Selecione a coluna
+                </option>
+
+                {headers.map(
+                  (
+                    header,
+                    index
+                  ) => (
+                    <option
+                      key={`${header}-${index}`}
+                      value={index}
+                    >
+                      {header}
+                    </option>
+                  )
+                )}
+              </select>
+            )}
+
+          
+        </div>
+
+        {/* LIMPAR NÚMEROS */}
+
+        {numbers.length > 0 && (
+          <Button
+            variant="ghost"
+            className=""
+            onClick={() => {
+              onClearNumbers();
+
+              setSelectedFile(null);
+
+              setImportedNumbers([]);
+
+              setHeaders([]);
+
+              setExcelRows([]);
+
+              setSelectedColumn("");
+
+              setStatusColumnIndex(null);
+
+              setOnlyFailures(false);
+
+              setResult("");
+            }}
+          >
+            <Trash />
           </Button>
         )}
+      </section>
 
-
-      {/* SELECT DAS COLUNAS */}
-
-      {selectedFile &&
-        headers.length > 0 && (
-          <select
-            value={selectedColumn}
-            onChange={handleColumnChange}
-            disabled={loading}
-            className="h-10 rounded-md border bg-background px-3 text-sm"
-          >
-            <option value="" disabled>
-              Selecione a coluna
-            </option>
-
-            {headers.map(
-              (header, index) => (
-                <option
-                  key={`${header}-${index}`}
-                  value={index}
-                >
-                  {header}
-                </option>
-              )
-            )}
-          </select>
-        )}
-
-      
       {/* LOADING */}
 
-     
-      </div>
-
-  {numbers.length>0 &&
-       <Button variant="ghost"
-        className=""
-        onClick={() => {
-          onClearNumbers();
-          setSelectedFile(null)
-          setResult('')
-        }}>
-        <Trash />
-      </Button>
-      }
-    </section>
-
-     {loading && (
+      {loading && (
         <p className="px-1 text-sm text-gray-700">
           Importando números...
         </p>
@@ -608,6 +737,43 @@ export default function ExcelImportNumber({
         </p>
       )}
 
-      </>
+
+      {/* APENAS FALHAS */}
+
+          {selectedFile &&
+  hasFailures && (
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyFailures}
+                  disabled={loading}
+                  onChange={(event) => {
+                    const checked =
+                      event.target.checked;
+
+                    setOnlyFailures(
+                      checked
+                    );
+
+                    if (
+                      excelRows.length > 0 &&
+                      selectedColumn !== ""
+                    ) {
+                      importNumbersFromColumn(
+                        Number(
+                          selectedColumn
+                        ),
+                        excelRows,
+                        checked,
+                        statusColumnIndex
+                      );
+                    }
+                  }}
+                />
+
+                Apenas falhas
+              </label>
+            )}
+    </>
   );
 }
