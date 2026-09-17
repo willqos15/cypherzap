@@ -812,71 +812,60 @@ ipcMain.handle(
   "whatsapp:export-group-numbers",
   async (_, groupId) => {
     if (!sock) {
-      throw new Error(
-        "WhatsApp não está conectado."
-      );
+      throw new Error("WhatsApp não está conectado.");
     }
 
-    const groups =
-      await sock.groupFetchAllParticipating();
-
-    const group = groups[groupId];
+    const group = await sock.groupMetadata(groupId);
 
     if (!group) {
-      throw new Error(
-        "Grupo não encontrado."
-      );
+      throw new Error("Grupo não encontrado.");
     }
 
-    const contacts =
-      await Promise.all(
-        group.participants.map(
-          async (participant) => {
-            const id = participant.id;
+    console.log("GRUPO:", group.subject);
+    console.log(
+      "TOTAL PARTICIPANTES:",
+      group.participants.length
+    );
 
-            if (
-              !id ||
-              id.endsWith("@g.us")
-            ) {
-              return null;
-            }
+    const contacts = await Promise.all(
+      group.participants.map(async (participant) => {
+        const id = participant.id;
 
-            let number = "";
+        if (!id || id.endsWith("@g.us")) {
+          return null;
+        }
 
-            if (
-              id.endsWith("@lid")
-            ) {
-              const pn =
-                await sock.signalRepository?.lidMapping?.getPNForLID(
-                  id
-                );
+        let number = "";
 
-              if (pn) {
-                number = pn
-                  .split("@")[0]
-                  .split(":")[0]
-                  .replace(/\D/g, "");
-              }
-            } else {
-              number = id
-                .split("@")[0]
-                .split(":")[0]
-                .replace(/\D/g, "");
-            }
+        if (id.endsWith("@lid")) {
+          const pn =
+            await sock.signalRepository?.lidMapping?.getPNForLID(id);
 
-            return {
-              name:
-                participant.notify ||
-                participant.name ||
-                "Nome indisponível",
-
-              number:
-                number ||
-                "Número indisponível",
-            };
+          if (pn) {
+            number = pn
+              .split("@")[0]
+              .split(":")[0]
+              .replace(/\D/g, "");
           }
-        )
-      );
+        } else {
+          number = id
+            .split("@")[0]
+            .split(":")[0]
+            .replace(/\D/g, "");
+        }
+
+        return {
+          name:
+            participant.notify ||
+            participant.name ||
+            "Nome indisponível",
+
+          number:
+            number ||
+            "Número indisponível",
+        };
+      })
+    );
 
     return contacts.filter(Boolean);
   }
