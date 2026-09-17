@@ -13,8 +13,7 @@ const makeWASocket =
   require("@whiskeysockets/baileys").default;
 
 const {
-  useMultiFileAuthState,
-  DisconnectReason
+  useMultiFileAuthState
 } = require("@whiskeysockets/baileys");
 
 const QRCode = require("qrcode");
@@ -444,30 +443,22 @@ function enviarContagemContatos() {
 }
 
 async function resetWhatsAppAuth() {
-  console.log("Sessão inválida (401). Cancelando autenticação...");
+  console.log("RESETANDO AUTENTICAÇÃO DO WHATSAPP...");
 
-  if (sock) {
+  const currentSock = sock;
+
+  // Impede que o socket antigo interfira no novo fluxo
+  sock = null;
+
+  if (currentSock) {
     try {
-      sock.end(undefined);
+      currentSock.end(undefined);
     } catch (error) {
-      console.log("Socket já estava encerrado.");
+      console.log(
+        "Erro ao encerrar socket durante reset:",
+        error
+      );
     }
-
-    sock = null;
-  }
-
-  const authPath = path.join(
-    app.getPath("userData"),
-    "auth"
-  );
-
-  if (fs.existsSync(authPath)) {
-    fs.rmSync(authPath, {
-      recursive: true,
-      force: true,
-    });
-
-    console.log("Autenticação removida.");
   }
 
   whatsappStatus = "disconnected";
@@ -490,7 +481,44 @@ async function resetWhatsAppAuth() {
     );
   }
 
-  scheduleReconnect(1000);
+  const authPath = path.join(
+    app.getPath("userData"),
+    "auth"
+  );
+
+  try {
+    if (fs.existsSync(authPath)) {
+      fs.rmSync(authPath, {
+        recursive: true,
+        force: true,
+      });
+
+      console.log("Autenticação removida.");
+    }
+  } catch (error) {
+    console.error(
+      "Erro ao remover autenticação:",
+      error
+    );
+  }
+
+  // Dá uma pequena folga antes de criar outro socket
+  await new Promise((resolve) => {
+    setTimeout(resolve, 1000);
+  });
+
+  if (manualLogout) {
+    console.log(
+      "Logout manual em andamento. Reset automático cancelado."
+    );
+    return;
+  }
+
+  console.log(
+    "Autenticação resetada. Criando nova conexão..."
+  );
+
+  scheduleReconnect(0);
 }
 
 
@@ -513,10 +541,10 @@ async function connectWhatsApp() {
 
   sock = newSock;
 
-  sock.ev.on(
-    "creds.update",
-    saveCreds
-  );
+  newSock.ev.on(
+  "creds.update",
+  saveCreds
+);
 
 newSock.ev.on(
   "connection.update",
@@ -537,35 +565,39 @@ newSock.ev.on(
     console.log("DATA:", data);
 
     if (update.qr) {
-      console.log(
-        "QR GERADO PELO BAILEYS"
+  if (sock !== newSock) {
+    console.log("QR de socket antigo. Ignorando.");
+    return;
+  }
+
+  console.log("QR GERADO PELO BAILEYS");
+
+  QRCode.toDataURL(update.qr)
+    .then((qrDataUrl) => {
+      if (sock !== newSock) {
+        console.log(
+          "QR convertido de socket antigo. Ignorando."
+        );
+        return;
+      }
+
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed()
+      ) {
+        mainWindow.webContents.send(
+          "whatsapp-qr",
+          qrDataUrl
+        );
+      }
+    })
+    .catch((error) => {
+      console.error(
+        "Erro ao gerar QR Code:",
+        error
       );
-
-      QRCode.toDataURL(update.qr)
-        .then((qrDataUrl) => {
-
-          console.log(
-            "QR CONVERTIDO E ENVIADO PARA O FRONT"
-          );
-
-          if (
-            mainWindow &&
-            !mainWindow.isDestroyed()
-          ) {
-            mainWindow.webContents.send(
-              "whatsapp-qr",
-              qrDataUrl
-            );
-          }
-
-        })
-        .catch((error) => {
-          console.error(
-            "Erro ao gerar QR Code:",
-            error
-          );
-        });
-    }
+    });
+}
 
     if (update.connection === "open") {
 
@@ -659,7 +691,7 @@ newSock.ev.on(
   }
 );
 
-  sock.ev.on(
+  newSock.ev.on(
     "messaging-history.set",
     ({ contacts: historyContacts }) => {
       console.log(
@@ -687,7 +719,7 @@ newSock.ev.on(
     }
   );
 
-  sock.ev.on(
+   newSock.ev.on(
     "contacts.upsert",
     (newContacts) => {
       console.log(
@@ -716,7 +748,7 @@ newSock.ev.on(
   );
 
 
-  sock.ev.on(
+   newSock.ev.on(
     "contacts.update",
     (updatedContacts) => {
       console.log(
@@ -1002,18 +1034,22 @@ ipcMain.handle(
   "logout-whatsapp",
   async () => {
     try {
+      console.log("INICIANDO LOGOUT MANUAL...");
+
       manualLogout = true;
 
-      // Guarda o socket atual
       const currentSock = sock;
 
-      // Impede que o restante do sistema use o socket
+      // Primeiro invalida o socket global
       sock = null;
 
-      // Faz logout no WhatsApp
       if (currentSock) {
         try {
           await currentSock.logout();
+
+          console.log(
+            "Logout realizado no WhatsApp."
+          );
         } catch (error) {
           console.log(
             "Erro durante logout do socket:",
@@ -1022,11 +1058,9 @@ ipcMain.handle(
         }
       }
 
-      // Atualiza estado
       whatsappStatus = "disconnected";
       licencaAtual = null;
 
-      // Atualiza frontend
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(
           "whatsapp-status",
@@ -1044,48 +1078,45 @@ ipcMain.handle(
         );
       }
 
-      // Dá tempo para o Baileys encerrar o socket antigo
-      await new Promise((resolve) => {
-        setTimeout(resolve, 1500);
-      });
-
-      // Remove autenticação salva
       const authPath = path.join(
         app.getPath("userData"),
         "auth"
       );
 
-      if (fs.existsSync(authPath)) {
-        try {
+      // Remove a sessão salva
+      try {
+        if (fs.existsSync(authPath)) {
           fs.rmSync(authPath, {
             recursive: true,
-            force: true
+            force: true,
           });
 
           console.log(
-            "Autenticação removida."
-          );
-        } catch (error) {
-          console.error(
-            "Erro ao remover autenticação:",
-            error
+            "Autenticação removida após logout."
           );
         }
+      } catch (error) {
+        console.error(
+          "Erro ao remover autenticação:",
+          error
+        );
       }
 
-      // IMPORTANTE:
-      // agora o próximo socket deve ser iniciado
+      // Pequena pausa para garantir que o socket antigo
+      // terminou antes de criar o novo.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+
       manualLogout = false;
 
       console.log(
-        "Logout concluído. Gerando novo QR..."
+        "LOGOUT CONCLUÍDO. GERANDO NOVO QR..."
       );
 
-      // Inicia uma nova conexão com auth vazio
       await connectWhatsApp();
 
       return true;
-
     } catch (error) {
       console.error(
         "Erro ao desconectar:",
