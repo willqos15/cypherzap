@@ -28,6 +28,9 @@ export default function ExcelImportNumber({
 
   const [hasFailures, setHasFailures] = useState(false);
 
+  const [onlyWaiting, setOnlyWaiting] = useState(false);
+const [hasWaiting, setHasWaiting] = useState(false);
+
   const [loading, setLoading] = useState(false);
 
   const [result, setResult] = useState("");
@@ -104,11 +107,12 @@ export default function ExcelImportNumber({
    */
 
   function importNumbersFromColumn(
-    columnIndex: number,
-    rows: ExcelRow[],
-    filterFailures = onlyFailures,
-    statusIndex = statusColumnIndex
-  ) {
+  columnIndex: number,
+  rows: ExcelRow[],
+  filterFailures = onlyFailures,
+  statusIndex = statusColumnIndex,
+  filterWaiting = onlyWaiting
+) {
     /*
      * Remove os números da importação anterior.
      */
@@ -162,18 +166,29 @@ export default function ExcelImportNumber({
        * ==========================================
        */
 
-      if (
-        filterFailures &&
-        statusIndex !== null
-      ) {
-        const status = normalizeHeader(
-          row[statusIndex]
-        );
+     if (
+  statusIndex !== null &&
+  (filterFailures || filterWaiting)
+) {
+  const status = normalizeHeader(
+    row[statusIndex]
+  );
 
-        if (status !== "falha") {
-          continue;
-        }
-      }
+  const isFailure =
+    status === "falha";
+
+  const isWaiting =
+    status === "espera em fila";
+
+  if (
+    !(
+      (filterFailures && isFailure) ||
+      (filterWaiting && isWaiting)
+    )
+  ) {
+    continue;
+  }
+}
 
       /*
        * ==========================================
@@ -440,6 +455,23 @@ const hasStatusFailures =
 
 setHasFailures(hasStatusFailures);
 setOnlyFailures(false);
+
+const hasStatusWaiting =
+  detectedStatusColumnIndex !== null &&
+  rows.slice(1).some((row) => {
+    if (!Array.isArray(row)) {
+      return false;
+    }
+
+    return (
+      normalizeHeader(
+        row[detectedStatusColumnIndex]
+      ) === "espera em fila"
+    );
+  });
+
+setHasWaiting(hasStatusWaiting);
+setOnlyWaiting(false);
 
       /*
        * Guarda o Excel inteiro.
@@ -774,6 +806,39 @@ setOnlyFailures(false);
                 Apenas falhas
               </label>
             )}
+
+
+            {selectedFile &&
+  hasWaiting && (
+    <label className="flex items-center gap-2 text-sm cursor-pointer">
+      <input
+        type="checkbox"
+        checked={onlyWaiting}
+        disabled={loading}
+        onChange={(event) => {
+          const checked =
+            event.target.checked;
+
+          setOnlyWaiting(checked);
+
+          if (
+            excelRows.length > 0 &&
+            selectedColumn !== ""
+          ) {
+            importNumbersFromColumn(
+              Number(selectedColumn),
+              excelRows,
+              onlyFailures,
+              statusColumnIndex,
+              checked
+            );
+          }
+        }}
+      />
+
+      Espera em fila
+    </label>
+  )}
     </>
   );
 }
