@@ -84,6 +84,9 @@ onContactsCount: (
 
   getContactsCount: () => Promise<number>;
 
+  
+exportAllGroupNumbers: () => Promise<GroupContact[]>;
+
     };
 
   }

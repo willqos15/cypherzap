@@ -17,6 +17,7 @@ type WhatsAppGroup = {
 export function GroupContactsExtractor() {
     const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
     const [selectedGroupId, setSelectedGroupId] = useState("");
+
     const [search, setSearch] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
@@ -28,6 +29,8 @@ export function GroupContactsExtractor() {
     const selectedGroup = groups.find(
         (group) => group.id === selectedGroupId
     );
+
+    const isAllGroupsSelected = selectedGroupId === "ALL";
 
     const filteredGroups = groups.filter((group) =>
         group.title
@@ -120,120 +123,138 @@ export function GroupContactsExtractor() {
 
                         <div className="flex gap-4 items-center">
 
-                        {groups.length === 0 ? (
-                            <button
-                                type="button"
-                                onClick={
-                                    handleSearchGroups
-                                }
-                                disabled={isSearching}
-                                className="flex w-fit items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <Search className="h-4 w-4" />
-
-                                {isSearching
-                                    ? "Buscando..."
-                                    : "Buscar grupos"}
-                            </button>
-                        ) : (
-                            <div
-                                ref={containerRef}
-                                className="flex items-center gap-2"
-                            >
-                                <div className="relative w-80">
-                                    <Input
-                                        value={search}
-                                        placeholder="Pesquisar grupo"
-                                        onChange={
-                                            handleInputChange
-                                        }
-                                        onFocus={() =>
-                                            setIsOpen(true)
-                                        }
-                                        className="pr-9"
-                                    />
-
-                                    {search && (
-                                        <button
-                                            type="button"
-                                            onClick={
-                                                handleClear
-                                            }
-                                            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded hover:bg-gray-100"
-                                        >
-                                            <X className="h-4 w-4 text-gray-500" />
-                                        </button>
-                                    )}
-
-                                    {isOpen && (
-                                        <div className="absolute left-0 top-full z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border-2 border-gray-300 bg-white">
-                                            {filteredGroups.length > 0 ? (
-                                                filteredGroups.map(
-                                                    (group) => (
-                                                        <button
-                                                            key={
-                                                                group.id
-                                                            }
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleSelectGroup(
-                                                                    group
-                                                                )
-                                                            }
-                                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-100"
-                                                        >
-                                                            <Users className="h-4 w-4 shrink-0 text-gray-500" />
-
-                                                            <span className="truncate">
-                                                                {
-                                                                    group.title
-                                                                }
-                                                            </span>
-                                                        </button>
-                                                    )
-                                                )
-                                            ) : (
-                                                <div className="px-3 py-3 text-sm text-gray-500">
-                                                    Nenhum grupo encontrado.
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
+                            {groups.length === 0 ? (
                                 <button
                                     type="button"
                                     onClick={
                                         handleSearchGroups
                                     }
                                     disabled={isSearching}
-                                    title="Atualizar grupos"
-                                    className="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="flex w-fit items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <RefreshCw
-                                        className={`h-4 w-4 ${isSearching
+                                    <Search className="h-4 w-4" />
+
+                                    {isSearching
+                                        ? "Buscando..."
+                                        : "Buscar grupos"}
+                                </button>
+                            ) : (
+                                <div
+                                    ref={containerRef}
+                                    className="flex items-center gap-2"
+                                >
+                                    <div className="relative w-80">
+                                        <Input
+                                            value={search}
+                                            placeholder="Pesquisar grupo"
+                                            onChange={
+                                                handleInputChange
+                                            }
+                                            onFocus={() =>
+                                                setIsOpen(true)
+                                            }
+                                            className="pr-9"
+                                        />
+
+                                        {search && (
+                                            <button
+                                                type="button"
+                                                onClick={
+                                                    handleClear
+                                                }
+                                                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded hover:bg-gray-100"
+                                            >
+                                                <X className="h-4 w-4 text-gray-500" />
+                                            </button>
+                                        )}
+
+                                        {isOpen && (
+                                            <div className="absolute left-0 top-full z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border-2 border-gray-300 bg-white">
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedGroupId("ALL");
+                                                        setSearch("Todos os grupos");
+                                                        setIsOpen(false);
+                                                        setError("");
+                                                    }}
+                                                    className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm font-medium hover:bg-gray-100"
+                                                >
+                                                    <Users className="h-4 w-4 shrink-0 text-gray-500" />
+
+                                                    <span className="truncate">
+                                                        Todos os grupos
+                                                    </span>
+                                                </button>
+
+                                                {filteredGroups.length > 0 ? (
+                                                    filteredGroups.map(
+                                                        (group) => (
+                                                            <button
+                                                                key={
+                                                                    group.id
+                                                                }
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSelectGroup(
+                                                                        group
+                                                                    )
+                                                                }
+                                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-100"
+                                                            >
+                                                                <Users className="h-4 w-4 shrink-0 text-gray-500" />
+
+                                                                <span className="truncate">
+                                                                    {
+                                                                        group.title
+                                                                    }
+                                                                </span>
+                                                            </button>
+                                                        )
+                                                    )
+                                                ) : (
+                                                    <div className="px-3 py-3 text-sm text-gray-500">
+                                                        Nenhum grupo encontrado.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            handleSearchGroups
+                                        }
+                                        disabled={isSearching}
+                                        title="Atualizar grupos"
+                                        className="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <RefreshCw
+                                            className={`h-4 w-4 ${isSearching
                                                 ? "animate-spin"
                                                 : ""
-                                            }`}
-                                    />
-                                </button>
-                                
+                                                }`}
+                                        />
+                                    </button>
 
-                                
-                            </div>
-                        )}
+
+
+                                </div>
+                            )}
                         </div>
 
-                        {selectedGroup && groups.length > 0  && (
-                                    <ExportGroupButton
-                                        groupId={
-                                            selectedGroup.id
-                                        }
-                                        groupTitle={
-                                            selectedGroup.title
-                                        }
-                                    />
-                                )}
+                        {(selectedGroup || isAllGroupsSelected) && groups.length > 0 && (
+                            <ExportGroupButton
+                                groupId={isAllGroupsSelected ? "ALL" : selectedGroup!.id}
+                                groupTitle={
+                                    isAllGroupsSelected
+                                        ? "Todos os grupos"
+                                        : selectedGroup!.title
+                                }
+                            />
+                        )}
 
                         {error && (
                             <span className="text-sm text-red-600">

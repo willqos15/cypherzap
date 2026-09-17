@@ -27,14 +27,31 @@ export function ExportGroupButton({
             setIsExporting(true);
 
             const contacts: GroupContact[] =
-                await window.whatsapp.exportGroupNumbers(groupId);
+    groupId === "ALL"
+        ? await window.whatsapp.exportAllGroupNumbers()
+        : await window.whatsapp.exportGroupNumbers(groupId);
 
-            const worksheet = XLSX.utils.json_to_sheet(
-                contacts.map((contact) => ({
-                    Nome: contact.name,
-                    Número: contact.number,
-                }))
-            );
+            const disponiveis = contacts.filter(
+    (contact) =>
+        !contact.number.startsWith("Número indisponível")
+);
+
+const indisponiveis = contacts.filter(
+    (contact) =>
+        contact.number.startsWith("Número indisponível")
+);
+
+const contatosOrdenados = [
+    ...disponiveis,
+    ...indisponiveis,
+];
+
+const worksheet = XLSX.utils.json_to_sheet(
+    contatosOrdenados.map((contact) => ({
+        Nome: contact.name,
+        Número: contact.number,
+    }))
+);
 
             const workbook = XLSX.utils.book_new();
 

@@ -88,6 +88,11 @@ getContactsCount: () => {
   );
 },
 
+exportAllGroupNumbers: () =>
+    ipcRenderer.invoke(
+        "whatsapp:export-all-group-numbers"
+    ),
+
 onContactsCount: (callback) => {
   const listener = (_event, count) => {
     callback(count);

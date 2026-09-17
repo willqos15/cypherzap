@@ -48,10 +48,25 @@ export default function ExportContacts() {
                 return;
             }
 
-            const data = contacts.map((contact) => ({
-                Nome: contact.name,
-                Número: contact.number,
-            }));
+            const disponiveis = contacts.filter(
+    (contact) =>
+        !contact.number.startsWith("Número indisponível")
+);
+
+const indisponiveis = contacts.filter(
+    (contact) =>
+        contact.number.startsWith("Número indisponível")
+);
+
+const contatosOrdenados = [
+    ...disponiveis,
+    ...indisponiveis,
+];
+
+const data = contatosOrdenados.map((contact) => ({
+    Nome: contact.name,
+    Número: contact.number,
+}));
 
             const worksheet = XLSX.utils.json_to_sheet(data);
 

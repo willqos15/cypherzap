@@ -229,8 +229,18 @@ function isValidContactId(id) {
   return true;
 }
 
-ipcMain.handle(
-  "whatsapp:export-contacts",
+
+function isValidPhoneNumber(number) {
+  if (!number) {
+    return false;
+  }
+
+  const digits = number.replace(/\D/g, "");
+
+  return digits.length >= 11 && digits.length <= 14;
+}
+
+ipcMain.handle("whatsapp:export-contacts",
   async () => {
 
     if (!sock) {
@@ -247,8 +257,17 @@ ipcMain.handle(
     continue;
   }
 
-  const number =
-    await resolveContactNumber(contact.id);
+  const number = await resolveContactNumber(contact.id);
+
+if (!isValidPhoneNumber(number)) {
+  console.log(
+    "NÚMERO INVÁLIDO:",
+    contact.id,
+    "=>",
+    number
+  );
+  continue;
+}
 
     
 
@@ -782,56 +801,9 @@ newSock.ev.on(
   ({
     chats,
     contacts: historyContacts,
-    messages,
-    isLatest,
-    progress,
-    syncType,
     lidPnMappings
   }) => {
 
-    console.log("\n========== HISTORY SYNC ==========");
-
-    console.log(
-      "CHATS:",
-      chats?.length ?? 0
-    );
-
-    console.log(
-      "CONTATOS:",
-      historyContacts?.length ?? 0
-    );
-
-    console.log(
-      "MENSAGENS:",
-      messages?.length ?? 0
-    );
-
-    console.log(
-      "LID MAPPINGS:",
-      lidPnMappings?.length ?? 0
-    );
-
-    console.log(
-      "PROGRESS:",
-      progress
-    );
-
-    console.log(
-      "IS LATEST:",
-      isLatest
-    );
-
-    console.log(
-      "SYNC TYPE:",
-      syncType
-    );
-
-    if (historyContacts?.length) {
-      console.log(
-        "EXEMPLO CONTATO:",
-        historyContacts[0]
-      );
-    }
 
     if (chats?.length) {
       console.log(
@@ -851,9 +823,7 @@ newSock.ev.on(
   );
 }
 
-    console.log(
-      "=================================\n"
-    );
+   
 
     for (const contact of historyContacts ?? []) {
   if (!isValidContactId(contact.id)) {
@@ -877,10 +847,7 @@ newSock.ev.on(
   "chats.upsert",
   (chats) => {
 
-    console.log(
-      "CHATS UPSERT:",
-      chats.length
-    );
+   
 
     for (const chat of chats) {
 
@@ -908,10 +875,7 @@ newSock.ev.on(
       });
     }
 
-    console.log(
-      "TOTAL APÓS CHATS:",
-      contacts.size
-    );
+  
 
     enviarContagemContatos();
   }
@@ -921,30 +885,11 @@ newSock.ev.on(
   "messages.upsert",
   ({ messages, type }) => {
 
-    console.log("\n===== MESSAGES UPSERT =====");
-    console.log("TIPO:", type);
-    console.log(
-      "QUANTIDADE:",
-      messages?.length ?? 0
-    );
+    
 
     for (const message of messages ?? []) {
 
-      console.log(
-        "REMOTE JID:",
-        message.key?.remoteJid
-      );
-
-      console.log(
-        "FROM ME:",
-        message.key?.fromMe
-      );
-
-      console.log(
-        "PARTICIPANT:",
-        message.key?.participant
-      );
-
+    
       const jid = message.key?.remoteJid;
 
       if (!jid) continue;
@@ -968,12 +913,8 @@ newSock.ev.on(
       });
     }
 
-    console.log(
-      "TOTAL APÓS MENSAGENS:",
-      contacts.size
-    );
 
-    console.log("===========================\n");
+  
 
     enviarContagemContatos();
   }
@@ -982,10 +923,7 @@ newSock.ev.on(
    newSock.ev.on(
     "contacts.upsert",
     (newContacts) => {
-      console.log(
-        "CONTATOS UPSERT:",
-        newContacts.length
-      );
+      
 
       for (const contact of newContacts) {
   if (!isValidContactId(contact.id)) {
@@ -1000,10 +938,6 @@ newSock.ev.on(
   });
 }
 
-      console.log(
-        "TOTAL DE CONTATOS:",
-        contacts.size
-      );
 
       enviarContagemContatos();
     }
@@ -1054,8 +988,7 @@ newSock.ev.on(
 
 }
 
-ipcMain.handle(
-  "whatsapp:get-contacts-count",
+ipcMain.handle("whatsapp:get-contacts-count",
   async () => {
     if (!sock) {
       throw new Error(
@@ -1083,7 +1016,8 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle("whatsapp:get-groups", async () => {
+ipcMain.handle("whatsapp:get-groups",
+   async () => {
   if (!sock) {
     throw new Error("WhatsApp não está conectado.");
   }
@@ -1099,14 +1033,14 @@ ipcMain.handle("whatsapp:get-groups", async () => {
   }));
 });
 
-ipcMain.handle(
-  "whatsapp:export-group-numbers",
+ipcMain.handle("whatsapp:export-group-numbers",
   async (_, groupId) => {
     if (!sock) {
       throw new Error("WhatsApp não está conectado.");
     }
 
-    const group = await sock.groupMetadata(groupId);
+    const groups = await sock.groupFetchAllParticipating();
+    const group = groups[groupId];
 
     if (!group) {
       throw new Error("Grupo não encontrado.");
@@ -1118,25 +1052,113 @@ ipcMain.handle(
       group.participants.length
     );
 
-    const contacts = await Promise.all(
-      group.participants.map(async (participant) => {
-        const id = participant.id;
+    const contacts = [];
+    const unavailableIds = new Set();
 
-        if (!id || id.endsWith("@g.us")) {
-          return null;
-        }
+    for (const participant of group.participants) {
+      const id = participant.id;
 
-        let number = "";
+      if (!id || id.endsWith("@g.us")) {
+        continue;
+      }
 
-        if (id.endsWith("@lid")) {
+      let number = "";
+
+      if (id.endsWith("@lid")) {
+        try {
           const pn =
             await sock.signalRepository?.lidMapping?.getPNForLID(id);
+
+          console.log(
+            "LID:",
+            id,
+            "=> PN:",
+            pn
+          );
 
           if (pn) {
             number = pn
               .split("@")[0]
               .split(":")[0]
               .replace(/\D/g, "");
+          }
+        } catch (error) {
+          console.error(
+            "Erro ao resolver LID:",
+            id,
+            error
+          );
+        }
+      } else {
+        number = id
+          .split("@")[0]
+          .split(":")[0]
+          .replace(/\D/g, "");
+      }
+
+      const name =
+        participant.notify ||
+        participant.name ||
+        "Nome indisponível";
+
+      // Não conseguiu descobrir o número
+      if (!number) {
+        unavailableIds.add(id);
+        continue;
+      }
+
+      contacts.push({
+        name,
+        number,
+      });
+    }
+
+    // Adiciona uma única linha no final
+    if (unavailableIds.size > 0) {
+      contacts.push({
+        name: "Números indisponíveis",
+        number: unavailableIds.size.toString(),
+      });
+    }
+
+    return contacts;
+  }
+);
+
+ipcMain.handle("whatsapp:export-all-group-numbers",
+  async () => {
+    if (!sock) {
+      throw new Error("WhatsApp não está conectado.");
+    }
+
+    const groups = await sock.groupFetchAllParticipating();
+    const allContacts = [];
+    const numbers = new Set();
+    const unavailableIds = new Set();
+
+    for (const group of Object.values(groups)) {
+      for (const participant of group.participants) {
+        const id = participant.id;
+
+        if (!id || id.endsWith("@g.us")) {
+          continue;
+        }
+
+        let number = "";
+
+        if (id.endsWith("@lid")) {
+          try {
+            const pn =
+              await sock.signalRepository?.lidMapping?.getPNForLID(id);
+
+            if (pn) {
+              number = pn
+                .split("@")[0]
+                .split(":")[0]
+                .replace(/\D/g, "");
+            }
+          } catch (error) {
+            console.log("Erro ao resolver LID:", id, error);
           }
         } else {
           number = id
@@ -1145,20 +1167,38 @@ ipcMain.handle(
             .replace(/\D/g, "");
         }
 
-        return {
+        // Número indisponível
+        if (!number) {
+          unavailableIds.add(id);
+          continue;
+        }
+
+        // Evita duplicar contatos presentes em vários grupos
+        if (numbers.has(number)) {
+          continue;
+        }
+
+        numbers.add(number);
+
+        allContacts.push({
           name:
             participant.notify ||
             participant.name ||
             "Nome indisponível",
+          number,
+        });
+      }
+    }
 
-          number:
-            number ||
-            "Número indisponível",
-        };
-      })
-    );
+    // Adiciona apenas uma linha com o total de indisponíveis
+    if (unavailableIds.size > 0) {
+      allContacts.push({
+        name: "Números indisponíveis",
+        number: unavailableIds.size.toString(),
+      });
+    }
 
-    return contacts.filter(Boolean);
+    return allContacts;
   }
 );
 
