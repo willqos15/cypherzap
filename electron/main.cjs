@@ -42,6 +42,7 @@ function createWindow() {
     }
   });
 
+  //
   mainWindow.webContents.openDevTools();
 
   if (!app.isPackaged) {
@@ -496,6 +497,7 @@ async function resetWhatsAppAuth() {
 async function connectWhatsApp() {
   console.log("Iniciando Baileys...");
 
+  manualLogout = false;
   const authPath = path.join(
     app.getPath("userData"),
     "auth"
@@ -504,104 +506,158 @@ async function connectWhatsApp() {
   const { state, saveCreds } =
     await useMultiFileAuthState(authPath);
 
-  sock = makeWASocket({
+  const newSock = makeWASocket({
     auth: state,
     syncFullHistory: true,
   });
+
+  sock = newSock;
 
   sock.ev.on(
     "creds.update",
     saveCreds
   );
 
-sock.ev.on("connection.update", (update) => {
-  console.log("CONNECTION UPDATE:", update);
+newSock.ev.on(
+  "connection.update",
+  (update) => {
 
-  const statusCode =
-    update.lastDisconnect?.error?.output?.statusCode;
-
-  const data =
-    update.lastDisconnect?.error?.data;
-
-  console.log("STATUS:", statusCode);
-  console.log("DATA:", data);
-
-  if (update.qr) {
-    console.log("QR GERADO PELO BAILEYS");
-
-    QRCode.toDataURL(update.qr)
-      .then((qrDataUrl) => {
-        console.log("QR CONVERTIDO E ENVIADO PARA O FRONT");
-
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(
-            "whatsapp-qr",
-            qrDataUrl
-          );
-        }
-      })
-      .catch((error) => {
-        console.error(
-          "Erro ao gerar QR Code:",
-          error
-        );
-      });
-  }
-
-  if (update.connection === "open") {
-    whatsappStatus = "connected";
-
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(
-        "whatsapp-status",
-        "connected"
-      );
-    }
-
-    return;
-  }
-
-  if (update.connection === "close") {
-    whatsappStatus = "disconnected";
-
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(
-        "whatsapp-status",
-        "disconnected"
-      );
-    }
-
-    // Sessão inválida
-    if (statusCode === 401) {
-      resetWhatsAppAuth().catch((error) => {
-        console.error(
-          "Erro ao resetar autenticação:",
-          error
-        );
-      });
-
-      return;
-    }
-
-    // Logout feito pelo usuário
-    if (manualLogout) {
-      console.log(
-        "Desconexão manual. Não reconectar automaticamente."
-      );
-
-      return;
-    }
-
-    // Outros erros, como 503
     console.log(
-      `Conexão encerrada (${statusCode}). Tentando reconectar...`
+      "CONNECTION UPDATE:",
+      update
     );
 
-    sock = null;
+    const statusCode =
+      update.lastDisconnect?.error?.output?.statusCode;
 
-    scheduleReconnect(3000);
+    const data =
+      update.lastDisconnect?.error?.data;
+
+    console.log("STATUS:", statusCode);
+    console.log("DATA:", data);
+
+    if (update.qr) {
+      console.log(
+        "QR GERADO PELO BAILEYS"
+      );
+
+      QRCode.toDataURL(update.qr)
+        .then((qrDataUrl) => {
+
+          console.log(
+            "QR CONVERTIDO E ENVIADO PARA O FRONT"
+          );
+
+          if (
+            mainWindow &&
+            !mainWindow.isDestroyed()
+          ) {
+            mainWindow.webContents.send(
+              "whatsapp-qr",
+              qrDataUrl
+            );
+          }
+
+        })
+        .catch((error) => {
+          console.error(
+            "Erro ao gerar QR Code:",
+            error
+          );
+        });
+    }
+
+    if (update.connection === "open") {
+
+      console.log(
+        "WHATSAPP CONECTADO"
+      );
+
+      // Só aceita esse socket se ele ainda
+      // for o socket atual
+      if (sock !== newSock) {
+        console.log(
+          "Socket antigo abriu. Ignorando."
+        );
+        return;
+      }
+
+      whatsappStatus = "connected";
+
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed()
+      ) {
+        mainWindow.webContents.send(
+          "whatsapp-status",
+          "connected"
+        );
+      }
+
+      return;
+    }
+
+    if (update.connection === "close") {
+
+      console.log(
+        "CONEXÃO FECHADA"
+      );
+
+      // Se esse socket não é mais o atual,
+      // não mexe no estado do novo socket.
+      if (sock !== newSock) {
+        console.log(
+          "Socket antigo fechado. Ignorando."
+        );
+        return;
+      }
+
+      whatsappStatus = "disconnected";
+
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed()
+      ) {
+        mainWindow.webContents.send(
+          "whatsapp-status",
+          "disconnected"
+        );
+
+        mainWindow.webContents.send(
+          "whatsapp-qr",
+          null
+        );
+      }
+
+      if (manualLogout) {
+
+        console.log(
+          "Desconexão manual. Não reconectar automaticamente."
+        );
+
+        sock = null;
+
+        return;
+      }
+
+      if (statusCode === 401) {
+
+        resetWhatsAppAuth().catch((error) => {
+          console.error(
+            "Erro ao resetar autenticação:",
+            error
+          );
+        });
+
+        return;
+      }
+
+      sock = null;
+
+      scheduleReconnect(3000);
+    }
   }
-});
+);
 
   sock.ev.on(
     "messaging-history.set",
@@ -945,65 +1001,101 @@ ipcMain.handle(
 ipcMain.handle(
   "logout-whatsapp",
   async () => {
-
     try {
       manualLogout = true;
 
-      if (sock) {
+      // Guarda o socket atual
+      const currentSock = sock;
+
+      // Impede que o restante do sistema use o socket
+      sock = null;
+
+      // Faz logout no WhatsApp
+      if (currentSock) {
         try {
-          await sock.logout();
+          await currentSock.logout();
         } catch (error) {
           console.log(
-            "Socket já estava desconectado."
+            "Erro durante logout do socket:",
+            error
           );
         }
-
-        sock = null;
       }
 
-      const fs = require("fs");
+      // Atualiza estado
+      whatsappStatus = "disconnected";
+      licencaAtual = null;
 
+      // Atualiza frontend
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(
+          "whatsapp-status",
+          "disconnected"
+        );
+
+        mainWindow.webContents.send(
+          "whatsapp-qr",
+          null
+        );
+
+        mainWindow.webContents.send(
+          "whatsapp-license",
+          null
+        );
+      }
+
+      // Dá tempo para o Baileys encerrar o socket antigo
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1500);
+      });
+
+      // Remove autenticação salva
       const authPath = path.join(
         app.getPath("userData"),
         "auth"
       );
 
       if (fs.existsSync(authPath)) {
-        fs.rmSync(authPath, {
-          recursive: true,
-          force: true
-        });
+        try {
+          fs.rmSync(authPath, {
+            recursive: true,
+            force: true
+          });
+
+          console.log(
+            "Autenticação removida."
+          );
+        } catch (error) {
+          console.error(
+            "Erro ao remover autenticação:",
+            error
+          );
+        }
       }
 
-      mainWindow.webContents.send(
-        "whatsapp-status",
-        "disconnected"
+      // IMPORTANTE:
+      // agora o próximo socket deve ser iniciado
+      manualLogout = false;
+
+      console.log(
+        "Logout concluído. Gerando novo QR..."
       );
 
-      mainWindow.webContents.send(
-        "whatsapp-qr",
-        null
-      );
-
-      licencaAtual = null;
-
-      // Aguarda um pouco antes de criar
-      // uma nova sessão
-      scheduleReconnect(1000);
+      // Inicia uma nova conexão com auth vazio
+      await connectWhatsApp();
 
       return true;
 
     } catch (error) {
-
       console.error(
         "Erro ao desconectar:",
         error
       );
 
+      manualLogout = false;
+
       throw error;
-
     }
-
   }
 );
 

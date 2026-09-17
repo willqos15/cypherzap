@@ -36,12 +36,18 @@ export function WhatsAppProvider({
     useState(false);
 
 useEffect(() => {
+  console.log("CONTEXT INICIANDO");
+
   const removeQRListener = window.whatsapp.onQR((qrData) => {
     console.log("QR RECEBIDO NO HOOK:", qrData);
     setQr(qrData);
   });
 
+  console.log("LISTENER QR REGISTRADO");
+
   const removeStatusListener = window.whatsapp.onStatus((value) => {
+    console.log("STATUS RECEBIDO NO HOOK:", value);
+
     if (value === "connected") {
       setConnected(true);
       setStatus("🟢 Conectado");
@@ -55,7 +61,11 @@ useEffect(() => {
     }
   });
 
+  console.log("LISTENER STATUS REGISTRADO");
+
   window.whatsapp.getStatus().then((value) => {
+    console.log("STATUS INICIAL:", value);
+
     if (value === "connected") {
       setConnected(true);
       setStatus("🟢 Conectado");
@@ -68,6 +78,8 @@ useEffect(() => {
   });
 
   return () => {
+    console.log("CONTEXT DESMONTANDO");
+
     removeQRListener();
     removeStatusListener();
   };

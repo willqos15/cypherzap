@@ -1,10 +1,10 @@
 {
-  "name": "cypherzap",
+  "name": "Cypherzap",
   "productName": "CypherZap",
   "author": "Canoa Tech",
   "description": "CypherZap - automatizador de mensagens.",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "commonjs",
   "main": "electron/main.cjs",
   "scripts": {
@@ -48,6 +48,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "concurrently": "^9.2.4",
     "electron": "^41.7.1",
+    "electron-builder": "^26.15.3",
     "electronmon": "^2.0.4",
     "eslint": "^10.9.0",
     "eslint-plugin-react-hooks": "^7.1.1",

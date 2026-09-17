@@ -33,6 +33,7 @@ function AppContent() {
     }
   }, [sending]);
 
+  
   return (
     <>
       <WhatsAppStatus
