@@ -49,24 +49,24 @@ export default function ExportContacts() {
             }
 
             const disponiveis = contacts.filter(
-    (contact) =>
-        !contact.number.startsWith("Número indisponível")
-);
+                (contact) =>
+                    !contact.number.startsWith("Número indisponível")
+            );
 
-const indisponiveis = contacts.filter(
-    (contact) =>
-        contact.number.startsWith("Número indisponível")
-);
+            const indisponiveis = contacts.filter(
+                (contact) =>
+                    contact.number.startsWith("Número indisponível")
+            );
 
-const contatosOrdenados = [
-    ...disponiveis,
-    ...indisponiveis,
-];
+            const contatosOrdenados = [
+                ...disponiveis,
+                ...indisponiveis,
+            ];
 
-const data = contatosOrdenados.map((contact) => ({
-    Nome: contact.name,
-    Número: contact.number,
-}));
+            const data = contatosOrdenados.map((contact) => ({
+                Nome: contact.name,
+                Número: contact.number,
+            }));
 
             const worksheet = XLSX.utils.json_to_sheet(data);
 
@@ -98,7 +98,7 @@ const data = contatosOrdenados.map((contact) => ({
             <div className="flex w-full mx-4 flex-col gap-4 rounded-lg border-2 border-gray-300 p-4">
 
                 <h2 className="text-lg font-semibold">
-                    Extrair contatos da agenda
+                    Extrair contatos da WhatsApp
                 </h2>
 
                 <div className="flex gap-4 items-center">
@@ -146,14 +146,13 @@ const data = contatosOrdenados.map((contact) => ({
                     </>
                 )}
 
-<div className="bg-yellow-100 rounded-xl p-2 flex gap-2 items-center">
-                <AlertCircle size={20}/> Os números podem demorar para aparecer devido a sincronização do WhatsApp.
+                <div className="bg-yellow-100 rounded-xl p-2 flex gap-2 items-center text-sm">
+                    <AlertCircle size={20} /> Os números podem demorar para aparecer devido a sincronização do WhatsApp.
+                </div>
 
             </div>
 
-            </div>
 
-            
         </div>
     );
 }

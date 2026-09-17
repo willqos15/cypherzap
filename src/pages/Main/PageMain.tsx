@@ -117,7 +117,8 @@ useEffect(()=>{
       <Toaster />
       <main className="relative w-full my-10 mx-auto px-10">
 
-        <div className={`${(!connected || disconnecting || !autorizado || sending) && "pointer-events-none opacity-50"}`}>
+        <div
+        className={`${(!connected || disconnecting || !autorizado || sending) && "pointer-events-none opacity-50"}`}>
 
           <section className={`${styleSection}`}>
 

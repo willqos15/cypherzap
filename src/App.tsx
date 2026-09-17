@@ -33,7 +33,7 @@ function AppContent() {
     }
   }, [sending]);
 
-  
+
   return (
     <>
       <WhatsAppStatus
@@ -71,9 +71,17 @@ function AppContent() {
         />
       </div>
 
-      <div className={modo === "grupos" ? "block" : "hidden"}>
+
+
+      <div className={`
+  ${(!connected || disconnecting || !autorizado || sending)
+          ? "pointer-events-none opacity-50"
+          : ""
+        }
+  ${modo === "grupos" ? "block" : "hidden"}
+`}>
         <GroupContactsExtractor />
-        <ExportContacts/>
+        <ExportContacts />
       </div>
     </>
   );

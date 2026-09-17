@@ -1,4 +1,5 @@
 import {
+    AlertCircle,
     RefreshCw,
     Search,
     Users,
@@ -261,6 +262,10 @@ export function GroupContactsExtractor() {
                                 {error}
                             </span>
                         )}
+
+                        <div className="bg-yellow-100 rounded-xl p-2 flex gap-2 items-center text-sm">
+                            <AlertCircle size={20} /> Alguns números podem não ser exportados, pois o WhatsApp pode não disponibilizá-los.
+                        </div>
                     </div>
                 </div>
             </section>
