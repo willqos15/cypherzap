@@ -220,11 +220,19 @@ async function atualizarLicenca(numero) {
 
 
 
+function isValidContactId(id) {
+  if (!id) return false;
 
+  if (id.endsWith("@g.us")) return false;
+  if (id.endsWith("@broadcast")) return false;
+
+  return true;
+}
 
 ipcMain.handle(
   "whatsapp:export-contacts",
   async () => {
+
     if (!sock) {
       throw new Error(
         "WhatsApp não está conectado."
@@ -232,32 +240,27 @@ ipcMain.handle(
     }
 
     const result = [];
+    const numbers = new Set();
 
     for (const contact of contacts.values()) {
-      if (!contact.id) continue;
+  if (!isValidContactId(contact.id)) {
+    continue;
+  }
 
-      let number = "";
+  const number =
+    await resolveContactNumber(contact.id);
 
-      if (contact.id.endsWith("@lid")) {
-        const pn =
-          await sock.signalRepository?.lidMapping?.getPNForLID(
-            contact.id
-          );
+    
 
-        if (pn) {
-          number = pn
-            .split("@")[0]
-            .split(":")[0]
-            .replace(/\D/g, "");
-        }
-      } else {
-        number = contact.id
-          .split("@")[0]
-          .split(":")[0]
-          .replace(/\D/g, "");
+      if (!number) {
+        continue;
       }
 
-      if (!number) continue;
+      if (numbers.has(number)) {
+        continue;
+      }
+
+      numbers.add(number);
 
       result.push({
         name:
@@ -266,12 +269,17 @@ ipcMain.handle(
           contact.verifiedName ||
           "Nome indisponível",
 
-        number,
+        number
       });
     }
 
     console.log(
-      "CONTATOS PARA EXPORTAR:",
+      "IDS ENCONTRADOS:",
+      contacts.size
+    );
+
+    console.log(
+      "NÚMEROS ÚNICOS:",
       result.length
     );
 
@@ -431,16 +439,33 @@ async function verificarLicenca(numero) {
 
 const fs = require("fs");
 
-function enviarContagemContatos() {
+async function enviarContagemContatos() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
+  const numbers = new Set();
+
+  for (const contact of contacts.values()) {
+    if (!isValidContactId(contact.id)) {
+      continue;
+    }
+
+    const number = await resolveContactNumber(contact.id);
+
+    if (!number) {
+      continue;
+    }
+
+    numbers.add(number);
+  }
+
   mainWindow.webContents.send(
     "whatsapp-contacts-count",
-    contacts.size
+    numbers.size
   );
 }
+
 
 async function resetWhatsAppAuth() {
   console.log("RESETANDO AUTENTICAÇÃO DO WHATSAPP...");
@@ -519,6 +544,65 @@ async function resetWhatsAppAuth() {
   );
 
   scheduleReconnect(0);
+}
+
+
+async function resolveContactNumber(id) {
+  if (!id) {
+    return "";
+  }
+
+  if (id.endsWith("@lid")) {
+    try {
+
+      console.log(
+        "TENTANDO RESOLVER LID:",
+        id
+      );
+
+      const pn =
+        await sock.signalRepository?.lidMapping?.getPNForLID(id);
+
+      console.log(
+        "RESULTADO LID -> PN:",
+        id,
+        "=>",
+        pn
+      );
+
+      if (pn) {
+        return pn
+          .split("@")[0]
+          .split(":")[0]
+          .replace(/\D/g, "");
+      }
+
+    } catch (error) {
+
+      console.log(
+        "NÃO FOI POSSÍVEL RESOLVER LID:",
+        id,
+        error
+      );
+
+    }
+
+    return "";
+  }
+
+  const number = id
+    .split("@")[0]
+    .split(":")[0]
+    .replace(/\D/g, "");
+
+  console.log(
+    "JID -> NÚMERO:",
+    id,
+    "=>",
+    number
+  );
+
+  return number;
 }
 
 
@@ -691,33 +775,209 @@ newSock.ev.on(
   }
 );
 
-  newSock.ev.on(
-    "messaging-history.set",
-    ({ contacts: historyContacts }) => {
+
+
+newSock.ev.on(
+  "messaging-history.set",
+  ({
+    chats,
+    contacts: historyContacts,
+    messages,
+    isLatest,
+    progress,
+    syncType,
+    lidPnMappings
+  }) => {
+
+    console.log("\n========== HISTORY SYNC ==========");
+
+    console.log(
+      "CHATS:",
+      chats?.length ?? 0
+    );
+
+    console.log(
+      "CONTATOS:",
+      historyContacts?.length ?? 0
+    );
+
+    console.log(
+      "MENSAGENS:",
+      messages?.length ?? 0
+    );
+
+    console.log(
+      "LID MAPPINGS:",
+      lidPnMappings?.length ?? 0
+    );
+
+    console.log(
+      "PROGRESS:",
+      progress
+    );
+
+    console.log(
+      "IS LATEST:",
+      isLatest
+    );
+
+    console.log(
+      "SYNC TYPE:",
+      syncType
+    );
+
+    if (historyContacts?.length) {
       console.log(
-        "CONTATOS RECEBIDOS NA SINCRONIZAÇÃO:",
-        historyContacts.length
+        "EXEMPLO CONTATO:",
+        historyContacts[0]
       );
+    }
 
-      for (const contact of historyContacts) {
-        if (!contact.id) continue;
+    if (chats?.length) {
+      console.log(
+        "EXEMPLO CHAT:",
+        chats[0]
+      );
+    }
 
-        const existing = contacts.get(contact.id) || {};
+    if (lidPnMappings?.length) {
+  console.log(
+    "LID MAPPINGS COMPLETO:",
+    JSON.stringify(
+      lidPnMappings,
+      null,
+      2
+    )
+  );
+}
 
-        contacts.set(contact.id, {
-          ...existing,
-          ...contact,
-        });
+    console.log(
+      "=================================\n"
+    );
+
+    for (const contact of historyContacts ?? []) {
+  if (!isValidContactId(contact.id)) {
+    continue;
+  }
+
+  const existing =
+    contacts.get(contact.id) || {};
+
+  contacts.set(contact.id, {
+    ...existing,
+    ...contact,
+  });
+}
+
+    enviarContagemContatos();
+  }
+);
+
+newSock.ev.on(
+  "chats.upsert",
+  (chats) => {
+
+    console.log(
+      "CHATS UPSERT:",
+      chats.length
+    );
+
+    for (const chat of chats) {
+
+      if (!chat.id) continue;
+
+      // Ignora grupos
+      if (chat.id.endsWith("@g.us")) {
+        continue;
       }
 
+      // Ignora broadcasts
+      if (chat.id.endsWith("@broadcast")) {
+        continue;
+      }
+
+      const existing =
+        contacts.get(chat.id) || {};
+
+      contacts.set(chat.id, {
+        ...existing,
+        id: chat.id,
+        name:
+          chat.name ||
+          existing.name,
+      });
+    }
+
+    console.log(
+      "TOTAL APÓS CHATS:",
+      contacts.size
+    );
+
+    enviarContagemContatos();
+  }
+);
+
+newSock.ev.on(
+  "messages.upsert",
+  ({ messages, type }) => {
+
+    console.log("\n===== MESSAGES UPSERT =====");
+    console.log("TIPO:", type);
+    console.log(
+      "QUANTIDADE:",
+      messages?.length ?? 0
+    );
+
+    for (const message of messages ?? []) {
+
       console.log(
-        "TOTAL DE CONTATOS:",
-        contacts.size
+        "REMOTE JID:",
+        message.key?.remoteJid
       );
 
-      enviarContagemContatos();
+      console.log(
+        "FROM ME:",
+        message.key?.fromMe
+      );
+
+      console.log(
+        "PARTICIPANT:",
+        message.key?.participant
+      );
+
+      const jid = message.key?.remoteJid;
+
+      if (!jid) continue;
+
+      // Ignora grupos
+      if (jid.endsWith("@g.us")) {
+        continue;
+      }
+
+      // Ignora broadcast
+      if (jid.endsWith("@broadcast")) {
+        continue;
+      }
+
+      const existing =
+        contacts.get(jid) || {};
+
+      contacts.set(jid, {
+        ...existing,
+        id: jid,
+      });
     }
-  );
+
+    console.log(
+      "TOTAL APÓS MENSAGENS:",
+      contacts.size
+    );
+
+    console.log("===========================\n");
+
+    enviarContagemContatos();
+  }
+);
 
    newSock.ev.on(
     "contacts.upsert",
@@ -728,44 +988,17 @@ newSock.ev.on(
       );
 
       for (const contact of newContacts) {
-        if (!contact.id) continue;
+  if (!isValidContactId(contact.id)) {
+    continue;
+  }
 
-        const existing = contacts.get(contact.id) || {};
+  const existing = contacts.get(contact.id) || {};
 
-        contacts.set(contact.id, {
-          ...existing,
-          ...contact,
-        });
-      }
-
-      console.log(
-        "TOTAL DE CONTATOS:",
-        contacts.size
-      );
-
-      enviarContagemContatos();
-    }
-  );
-
-
-   newSock.ev.on(
-    "contacts.update",
-    (updatedContacts) => {
-      console.log(
-        "CONTATOS UPDATE:",
-        updatedContacts.length
-      );
-
-      for (const contact of updatedContacts) {
-        if (!contact.id) continue;
-
-        const existing = contacts.get(contact.id) || {};
-
-        contacts.set(contact.id, {
-          ...existing,
-          ...contact,
-        });
-      }
+  contacts.set(contact.id, {
+    ...existing,
+    ...contact,
+  });
+}
 
       console.log(
         "TOTAL DE CONTATOS:",
@@ -775,20 +1008,78 @@ newSock.ev.on(
       enviarContagemContatos();
     }
   );
+
+
+ newSock.ev.on(
+  "contacts.update",
+  (updatedContacts) => {
+
+    console.log(
+      "CONTATOS UPDATE:",
+      updatedContacts.length
+    );
+
+    console.log(
+      "CONTATOS UPDATE DETALHADOS:",
+      JSON.stringify(
+        updatedContacts,
+        null,
+        2
+      )
+    );
+
+    for (const contact of updatedContacts) {
+  if (!isValidContactId(contact.id)) {
+    continue;
+  }
+
+  const existing =
+    contacts.get(contact.id) || {};
+
+  contacts.set(contact.id, {
+    ...existing,
+    ...contact,
+  });
+}
+
+    console.log(
+      "TOTAL DE CONTATOS:",
+      contacts.size
+    );
+
+    enviarContagemContatos();
+  }
+);
 
 
 }
 
 ipcMain.handle(
   "whatsapp:get-contacts-count",
-  () => {
+  async () => {
     if (!sock) {
       throw new Error(
         "WhatsApp não está conectado."
       );
     }
 
-    return contacts.size;
+    const numbers = new Set();
+
+    for (const contact of contacts.values()) {
+      if (!isValidContactId(contact.id)) {
+        continue;
+      }
+
+      const number = await resolveContactNumber(contact.id);
+
+      if (!number) {
+        continue;
+      }
+
+      numbers.add(number);
+    }
+
+    return numbers.size;
   }
 );
 

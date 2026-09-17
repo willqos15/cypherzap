@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx-js-style";
-import { Search, Download } from "lucide-react";
+import { Search, Download, AlertCircle } from "lucide-react";
 import { Button } from "#components/ui/button";
 
 
@@ -131,7 +131,14 @@ export default function ExportContacts() {
                     </>
                 )}
 
+<div className="bg-yellow-100 rounded-xl p-2 flex gap-2 items-center">
+                <AlertCircle size={20}/> Os números podem demorar para aparecer devido a sincronização do WhatsApp.
+
             </div>
+
+            </div>
+
+            
         </div>
     );
 }
