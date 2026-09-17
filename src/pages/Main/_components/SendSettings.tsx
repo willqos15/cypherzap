@@ -60,23 +60,51 @@ export function SendSettings({
         return value.replace(/^0+(?=\d)/, "");
     };
 
-    const handleMinIntervalChange = (value: string) => {
-        const normalizedValue = normalizeValue(value);
+const handleMinIntervalChange = (value: string) => {
+    const normalizedValue = normalizeValue(value);
 
-        setMinInterval(normalizedValue);
-        setMinIntervalSeconds(
-            normalizedValue === "" ? 0 : Number(normalizedValue)
-        );
-    };
+    if (normalizedValue === "") {
+        setMinInterval("");
+        return;
+    }
 
-    const handleMaxIntervalChange = (value: string) => {
-        const normalizedValue = normalizeValue(value);
+    const minValue = Number(normalizedValue);
 
+    if (minValue < 1) {
+        return;
+    }
+
+    setMinInterval(normalizedValue);
+    setMinIntervalSeconds(minValue);
+
+    if (minValue > Number(maxInterval)) {
         setMaxInterval(normalizedValue);
-        setMaxIntervalSeconds(
-            normalizedValue === "" ? 0 : Number(normalizedValue)
-        );
-    };
+        setMaxIntervalSeconds(minValue);
+    }
+};
+
+const handleMaxIntervalChange = (value: string) => {
+    const normalizedValue = normalizeValue(value);
+
+    if (normalizedValue === "") {
+        setMaxInterval("");
+        return;
+    }
+
+    const maxValue = Number(normalizedValue);
+
+    if (maxValue < 1) {
+        return;
+    }
+
+    setMaxInterval(normalizedValue);
+    setMaxIntervalSeconds(maxValue);
+
+    if (maxValue < Number(minInterval)) {
+        setMinInterval(normalizedValue);
+        setMinIntervalSeconds(maxValue);
+    }
+};
 
     const handlePauseEveryChange = (value: string) => {
         const normalizedValue = normalizeValue(value);
@@ -95,6 +123,8 @@ export function SendSettings({
             normalizedValue === "" ? 0 : Number(normalizedValue) * 60
         );
     };
+
+
 
     return (
         <>
@@ -119,9 +149,7 @@ export function SendSettings({
                                 value={minInterval}
                                 disabled={sending}
                                 onChange={(event) =>
-                                    handleMinIntervalChange(
-                                        event.target.value
-                                    )
+                                    handleMinIntervalChange(event.target.value)
                                 }
                             />
                         </div>
@@ -132,13 +160,11 @@ export function SendSettings({
                             <Input
                                 className="block w-20 box-border"
                                 type="number"
-                                min={0}
+                                min={minInterval}
                                 value={maxInterval}
                                 disabled={sending}
                                 onChange={(event) =>
-                                    handleMaxIntervalChange(
-                                        event.target.value
-                                    )
+                                    handleMaxIntervalChange(event.target.value)
                                 }
                             />
                         </div>
