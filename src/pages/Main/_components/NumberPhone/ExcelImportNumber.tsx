@@ -331,6 +331,9 @@ const [hasWaiting, setHasWaiting] = useState(false);
 
       setResult("");
 
+      setOnlyFailures(false)
+      setOnlyWaiting(false)
+
       /*
        * Limpa dados da importação anterior.
        */
@@ -620,7 +623,8 @@ setOnlyWaiting(false);
 
     setExcelRows([]);
 
-    setOnlyFailures(false);
+    setOnlyFailures(false)
+    setOnlyWaiting(false)
 
     setStatusColumnIndex(null);
 
@@ -743,7 +747,8 @@ setOnlyWaiting(false);
 
               setStatusColumnIndex(null);
 
-              setOnlyFailures(false);
+              setOnlyFailures(false)
+              setOnlyWaiting(false)
 
               setResult("");
             }}

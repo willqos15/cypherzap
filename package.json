@@ -1,6 +1,6 @@
 {
-  "name": "Cypherzap 1.0.2",
-  "productName": "CypherZap 1.0.2",
+  "name": "Cypherzap",
+  "productName": "CypherZap",
   "author": "Canoa Tech",
   "description": "CypherZap - automatizador de mensagens.",
   "private": true,
