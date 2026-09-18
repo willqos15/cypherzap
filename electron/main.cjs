@@ -42,8 +42,7 @@ function createWindow() {
     }
   });
 
-  //
-  mainWindow.webContents.openDevTools();
+  //mainWindow.webContents.openDevTools();
 
   if (!app.isPackaged) {
     mainWindow.loadURL("http://localhost:5173");
