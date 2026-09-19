@@ -144,9 +144,9 @@ function normalizePhone(value) {
 
   if (
 
-    phone.length === 8 &&
+    phone.length === 8 
 
-    phone.startsWith("9")
+    //&& phone.startsWith("9")
 
   ) {
 
