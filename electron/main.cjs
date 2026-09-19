@@ -1066,97 +1066,532 @@ ipcMain.handle("whatsapp:get-groups",
     }));
   });
 
-ipcMain.handle("whatsapp:export-group-numbers",
-  async (_, groupId) => {
-    if (!sock) {
-      throw new Error("WhatsApp não está conectado.");
+ipcMain.handle("whatsapp:export-group-numbers", async (_, groupId) => {
+  if (!sock) {
+    throw new Error("WhatsApp não está conectado.");
+  }
+
+  if (!groupId) {
+    throw new Error("ID do grupo não informado.");
+  }
+
+  // =========================================================
+  // CACHE LOCAL
+  // =========================================================
+
+  // Mantém os mapeamentos encontrados durante a execução.
+  // Isso evita consultar novamente o mesmo LID.
+  const lidCache = new Map();
+
+  // =========================================================
+  // FUNÇÕES AUXILIARES
+  // =========================================================
+
+  function extractNumber(value) {
+    if (!value || typeof value !== "string") {
+      return "";
     }
 
-    const groups = await sock.groupFetchAllParticipating();
-    const group = groups[groupId];
+    /*
+     * Exemplos:
+     *
+     * 5511999999999@s.whatsapp.net
+     * 5511999999999:12@s.whatsapp.net
+     * 5511999999999
+     *
+     * Resultado:
+     * 5511999999999
+     */
 
-    if (!group) {
-      throw new Error("Grupo não encontrado.");
+    const number = value
+      .split("@")[0]
+      .split(":")[0]
+      .replace(/\D/g, "");
+
+    return number;
+  }
+
+  function isValidNumber(number) {
+    if (!number) {
+      return false;
     }
 
-    console.log("GRUPO:", group.subject);
-    console.log(
-      "TOTAL PARTICIPANTES:",
-      group.participants.length
+    /*
+     * Evita considerar números absurdamente curtos
+     * como números válidos.
+     *
+     * Brasil normalmente terá pelo menos 10/11 dígitos,
+     * mas deixamos 8 como limite mínimo para não prender
+     * a função exclusivamente ao Brasil.
+     */
+    return number.length >= 8;
+  }
+
+  function isLid(value) {
+    return (
+      typeof value === "string" &&
+      value.includes("@lid")
+    );
+  }
+
+  function isPhoneJid(value) {
+    return (
+      typeof value === "string" &&
+      (
+        value.includes("@s.whatsapp.net") ||
+        value.includes("@c.us")
+      )
+    );
+  }
+
+  // =========================================================
+  // BUSCAR METADADOS DO GRUPO
+  // =========================================================
+
+  let group;
+
+  try {
+    group = await sock.groupMetadata(groupId);
+  } catch (error) {
+    console.error(
+      "Erro ao buscar metadata do grupo:",
+      error
     );
 
-    const contacts = [];
-    const unavailableIds = new Set();
+    throw new Error(
+      "Não foi possível obter os dados do grupo."
+    );
+  }
 
-    for (const participant of group.participants) {
-      const id = participant.id;
+  if (!group) {
+    throw new Error("Grupo não encontrado.");
+  }
 
-      if (!id || id.endsWith("@g.us")) {
-        continue;
+  console.log("----------------------------------------");
+  console.log("GRUPO:", group.subject);
+  console.log("ID:", group.id);
+  console.log(
+    "TOTAL PARTICIPANTES:",
+    group.participants?.length || 0
+  );
+  console.log(
+    "ADDRESSING MODE:",
+    group.addressingMode
+  );
+  console.log("----------------------------------------");
+
+  // =========================================================
+  // RESOLVER LID
+  // =========================================================
+
+  async function resolveLid(lid) {
+    if (!lid) {
+      return "";
+    }
+
+    // -------------------------------------------------------
+    // 1. CACHE
+    // -------------------------------------------------------
+
+    if (lidCache.has(lid)) {
+      const cached = lidCache.get(lid);
+
+      console.log(
+        "LID CACHE:",
+        lid,
+        "=>",
+        cached
+      );
+
+      return cached;
+    }
+
+    // -------------------------------------------------------
+    // 2. getPNForLID
+    // -------------------------------------------------------
+
+    try {
+      const pn =
+        await sock.signalRepository?.lidMapping?.getPNForLID(
+          lid
+        );
+
+      const number = extractNumber(pn);
+
+      if (isValidNumber(number)) {
+        console.log(
+          "LID RESOLVIDO PELO MAPPING:",
+          lid,
+          "=>",
+          pn,
+          "=>",
+          number
+        );
+
+        lidCache.set(lid, number);
+
+        return number;
       }
+    } catch (error) {
+      console.error(
+        "getPNForLID falhou:",
+        lid,
+        error
+      );
+    }
 
-      let number = "";
+    // -------------------------------------------------------
+    // 3. PEQUENO RETRY
+    // -------------------------------------------------------
 
-      if (id.endsWith("@lid")) {
-        try {
-          const pn =
-            await sock.signalRepository?.lidMapping?.getPNForLID(id);
+    await new Promise((resolve) =>
+      setTimeout(resolve, 300)
+    );
+
+    try {
+      const pn =
+        await sock.signalRepository?.lidMapping?.getPNForLID(
+          lid
+        );
+
+      const number = extractNumber(pn);
+
+      if (isValidNumber(number)) {
+        console.log(
+          "LID RESOLVIDO NO RETRY:",
+          lid,
+          "=>",
+          pn,
+          "=>",
+          number
+        );
+
+        lidCache.set(lid, number);
+
+        return number;
+      }
+    } catch (error) {
+      console.error(
+        "Retry getPNForLID falhou:",
+        lid,
+        error
+      );
+    }
+
+    // -------------------------------------------------------
+    // 4. PROCURAR NOS CONTATOS DO SOCKET
+    // -------------------------------------------------------
+
+    try {
+      const contacts =
+        sock.store?.contacts ||
+        sock.contacts ||
+        {};
+
+      const contact =
+        contacts[lid];
+
+      if (contact) {
+        const possibleValues = [
+          contact.phoneNumber,
+          contact.pn,
+          contact.jid,
+          contact.id,
+          contact.phone,
+        ];
+
+        for (const value of possibleValues) {
+          const number = extractNumber(value);
+
+          if (isValidNumber(number)) {
+            console.log(
+              "LID RESOLVIDO PELO CONTATO:",
+              lid,
+              "=>",
+              value,
+              "=>",
+              number
+            );
+
+            lidCache.set(lid, number);
+
+            return number;
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Erro procurando LID nos contatos:",
+        error
+      );
+    }
+
+    // -------------------------------------------------------
+    // 5. PROCURAR MAPEAMENTO REVERSO
+    // -------------------------------------------------------
+    /*
+     * Se já tivermos algum PN relacionado, podemos tentar
+     * verificar o mapeamento reverso.
+     *
+     * Aqui não inventamos o PN. Apenas verificamos se a
+     * estrutura do mapping está disponível.
+     */
+
+    try {
+      const mapping =
+        sock.signalRepository?.lidMapping;
+
+      if (mapping) {
+        console.log(
+          "LID sem PN direto:",
+          lid
+        );
+
+        console.log(
+          "Mapping disponível:",
+          !!mapping
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Erro no mapping reverso:",
+        error
+      );
+    }
+
+    // -------------------------------------------------------
+    // NÃO FOI POSSÍVEL RESOLVER
+    // -------------------------------------------------------
+
+    console.warn(
+      "NÃO FOI POSSÍVEL RESOLVER LID:",
+      lid
+    );
+
+    return "";
+  }
+
+  // =========================================================
+  // PROCESSAR PARTICIPANTES
+  // =========================================================
+
+  const contacts = [];
+  const unavailableIds = new Set();
+
+  const participants = Array.isArray(group.participants)
+    ? group.participants
+    : [];
+
+  for (const participant of participants) {
+    const id = participant?.id;
+
+    if (!id) {
+      continue;
+    }
+
+    // Não deve ocorrer em participantes normais,
+    // mas mantemos essa proteção.
+    if (id.endsWith("@g.us")) {
+      continue;
+    }
+
+    console.log("----------------------------------------");
+    console.log(
+      "PROCESSANDO PARTICIPANTE:",
+      id
+    );
+
+    console.log(
+      "PARTICIPANT:",
+      participant
+    );
+
+    let number = "";
+
+    // =======================================================
+    // TENTATIVA 1 - phoneNumber
+    // =======================================================
+
+    if (
+      participant.phoneNumber &&
+      isPhoneJid(participant.phoneNumber)
+    ) {
+      number = extractNumber(
+        participant.phoneNumber
+      );
+
+      console.log(
+        "Número encontrado em participant.phoneNumber:",
+        number
+      );
+    }
+
+    // =======================================================
+    // TENTATIVA 2 - pn
+    // =======================================================
+
+    if (!isValidNumber(number)) {
+      const possiblePn = [
+        participant.pn,
+        participant.phone,
+        participant.jid,
+      ];
+
+      for (const value of possiblePn) {
+        const extracted = extractNumber(value);
+
+        if (isValidNumber(extracted)) {
+          number = extracted;
 
           console.log(
-            "LID:",
-            id,
-            "=> PN:",
-            pn
+            "Número encontrado em propriedade alternativa:",
+            value,
+            "=>",
+            number
           );
 
-          if (pn) {
-            number = pn
-              .split("@")[0]
-              .split(":")[0]
-              .replace(/\D/g, "");
-          }
-        } catch (error) {
-          console.error(
-            "Erro ao resolver LID:",
-            id,
-            error
-          );
+          break;
         }
-      } else {
-        number = id
-          .split("@")[0]
-          .split(":")[0]
-          .replace(/\D/g, "");
       }
+    }
 
-      const name =
-        participant.notify ||
-        participant.name ||
-        "Nome indisponível";
+    // =======================================================
+    // TENTATIVA 3 - ID NORMAL
+    // =======================================================
 
-      // Não conseguiu descobrir o número
-      if (!number) {
-        unavailableIds.add(id);
-        continue;
+    if (
+      !isValidNumber(number) &&
+      !isLid(id)
+    ) {
+      const extracted = extractNumber(id);
+
+      if (isValidNumber(extracted)) {
+        number = extracted;
+
+        console.log(
+          "Número encontrado diretamente no ID:",
+          number
+        );
       }
+    }
 
-      contacts.push({
+    // =======================================================
+    // TENTATIVA 4 - RESOLVER LID
+    // =======================================================
+
+    if (
+      !isValidNumber(number) &&
+      isLid(id)
+    ) {
+      number = await resolveLid(id);
+    }
+
+    // =======================================================
+    // NOME
+    // =======================================================
+
+    const name =
+      participant.notify ||
+      participant.name ||
+      participant.pushName ||
+      "Nome indisponível";
+
+    // =======================================================
+    // SEM NÚMERO
+    // =======================================================
+
+    if (!isValidNumber(number)) {
+      console.warn(
+        "PARTICIPANTE SEM NÚMERO:",
+        {
+          id,
+          name,
+          participant,
+        }
+      );
+
+      unavailableIds.add(id);
+
+      continue;
+    }
+
+    // =======================================================
+    // EVITAR DUPLICADOS
+    // =======================================================
+
+    const alreadyExists = contacts.some(
+      (contact) =>
+        contact.number === number
+    );
+
+    if (alreadyExists) {
+      console.log(
+        "Número duplicado ignorado:",
+        number
+      );
+
+      continue;
+    }
+
+    // =======================================================
+    // ADICIONAR
+    // =======================================================
+
+    contacts.push({
+      name,
+      number,
+    });
+
+    console.log(
+      "CONTATO ADICIONADO:",
+      {
         name,
         number,
-      });
-    }
-
-    // Adiciona uma única linha no final
-    if (unavailableIds.size > 0) {
-      contacts.push({
-        name: "Números indisponíveis",
-        number: unavailableIds.size.toString(),
-      });
-    }
-
-    return contacts;
+      }
+    );
   }
-);
+
+  // =========================================================
+  // RESUMO
+  // =========================================================
+
+  console.log("----------------------------------------");
+  console.log("EXPORTAÇÃO FINALIZADA");
+  console.log("----------------------------------------");
+
+  console.log(
+    "Total participantes:",
+    participants.length
+  );
+
+  console.log(
+    "Números encontrados:",
+    contacts.length
+  );
+
+  console.log(
+    "Números indisponíveis:",
+    unavailableIds.size
+  );
+
+  console.log(
+    "LIDs resolvidos:",
+    lidCache.size
+  );
+
+  // =========================================================
+  // LINHA DE INDISPONÍVEIS
+  // =========================================================
+
+  if (unavailableIds.size > 0) {
+    contacts.push({
+      name: "Números indisponíveis",
+      number: unavailableIds.size.toString(),
+    });
+  }
+
+  return contacts;
+});
 
 ipcMain.handle("whatsapp:export-all-group-numbers",
   async () => {
