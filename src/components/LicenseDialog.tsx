@@ -1,4 +1,5 @@
 import { formatNumber } from "#lib/utils";
+import { useState } from "react";
 import type { Licenca } from "../types/Licensa";
 import { Button } from "./ui/button";
 import {
@@ -138,6 +139,10 @@ export default function LicenseDialog({
 }: LicenseDialogProps) {
   const autorizado = licenca?.autorizado ?? false;
 
+  const [solicitando, setSolicitando] = useState(false);
+const [mensagemSolicitacao, setMensagemSolicitacao] =
+  useState<string | null>(null);
+
   // Não possui licença cadastrada
   const semLicenca =
     !licenca || licenca.validade === null;
@@ -149,6 +154,79 @@ export default function LicenseDialog({
   const tempoRestante = calcularTempoRestante(
     licenca?.validade ?? null
   );
+
+
+  async function solicitarLicenca() {
+  try {
+    setSolicitando(true);
+    setMensagemSolicitacao(null);
+
+    const license = await window.whatsapp.getLicense();
+
+    if (!license?.numero) {
+      setMensagemSolicitacao(
+        "Erro: não foi possível identificar o número do WhatsApp."
+      );
+      return;
+    }
+
+
+    const response = await fetch(
+      "https://cypherzap-licenca.willqos15.workers.dev/licenca/solicitar",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          numero: license.numero,
+        }),
+      }
+    );
+
+    // Tenta ler a resposta da API
+    const data = await response.json();
+
+    console.log("RESPOSTA DA API:", data);
+
+    // API retornou erro HTTP
+    if (!response.ok) {
+      setMensagemSolicitacao(
+        `Erro: ${data?.motivo || data?.erro || "Erro desconhecido"}`
+      );
+      return;
+    }
+
+    // API retornou erro próprio
+    if (!data.sucesso) {
+      setMensagemSolicitacao(
+        `Erro: ${data?.motivo || data?.erro || "Erro desconhecido"}`
+      );
+      return;
+    }
+
+    // Sucesso
+    setMensagemSolicitacao(
+      "Licença solicitada com sucesso. Aguarde a ativação."
+    );
+
+  } catch (error) {
+    console.error("ERRO AO SOLICITAR LICENÇA:", error);
+
+    setMensagemSolicitacao(
+      `Erro: ${
+        error instanceof Error
+          ? error.message
+          : String(error)
+      }`
+    );
+  } finally {
+    setSolicitando(false);
+  }
+}
+
+
+
 
   return (
     <Dialog
@@ -176,7 +254,7 @@ export default function LicenseDialog({
                 <CreditCard className="h-4 w-4 text-yellow-500" />
 
                 <span className="text-sm font-medium">
-                  Licença necessária
+                  Verificar Licença
                 </span>
               </>
             ) : autorizado ? (
@@ -226,16 +304,23 @@ export default function LicenseDialog({
               </div>
 
 
-          <a href="https://wa.me/93991878598"
-          target="_blank">
-              <Button
-                type="button"
-                variant="secondary"
-                className="font-bold w-full"
-              >
-                Solicitar licença
-              </Button>
-              </a>
+          <Button
+  type="button"
+  variant="secondary"
+  className="font-bold w-full"
+  onClick={solicitarLicenca}
+  disabled={solicitando}
+>
+  {solicitando
+    ? "Solicitando..."
+    : "Solicitar licença"}
+</Button>
+
+{mensagemSolicitacao && (
+  <p className="text-center text-sm text-muted-foreground">
+    {mensagemSolicitacao}
+  </p>
+)}
             </div>
           </>
         ) : (

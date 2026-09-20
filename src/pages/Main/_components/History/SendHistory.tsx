@@ -346,7 +346,7 @@ export default function SendHistory({
 
                     {todosEnvios.length > 0 && (
                         <ExportHistoryButton
-                            title="Exportar Todos Envios"
+                            title="Exportar"
                             envios={todosEnvios}
                         />
                     )}
