@@ -17,6 +17,7 @@ import MessageModelImport from "./MessageModelImport";
 import { useState } from "react";
 
 import { Download, Trash2 } from "lucide-react";
+import EditModelDialog from "./EditModelDialog";
 
 type Props = {
   models: MessageModel[];
@@ -426,6 +427,20 @@ export default function MessageModelSelect({
                   {/* AÇÕES */}
 
                   <div className="flex items-center gap-1">
+
+                    <EditModelDialog
+                      model={model}
+                      disabled={disabled}
+                      onSave={(updatedModel) => {
+                        const updatedModels = models.map((currentModel) =>
+                          currentModel.id === updatedModel.id
+                            ? updatedModel
+                            : currentModel
+                        );
+
+                        onModelsChange(updatedModels);
+                      }}
+                    />
 
                     {/* EXPORTAR */}
 
