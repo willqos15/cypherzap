@@ -1,5 +1,8 @@
-
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   Dialog,
@@ -11,14 +14,24 @@ import {
 } from "../../../../components/ui/dialog";
 
 import { Button } from "../../../../components/ui/button";
+
 import { Textarea } from "../../../../components/ui/textarea";
 
 import type {
   MessageModel,
   MessageVariant,
 } from "../../../../types/MessageModel";
+
+import type { AttachmentType, MessageAttachmentData } from "../../../../types/Attachment";
+
 import { Input } from "../../../../components/ui/input";
-import { Plus, X } from "lucide-react";
+
+import {
+  Plus,
+  X,
+  Paperclip,
+  Trash2,
+} from "lucide-react";
 
 type Props = {
   models: MessageModel[];
@@ -45,15 +58,23 @@ export default function CreateModelDialog({
 
   const [modelTitle, setModelTitle] = useState("");
 
-  const [variants, setVariants] = useState<string[]>([""]);
+  const [variants, setVariants] =
+    useState<string[]>([""]);
+
+  const [attachment, setAttachment] =
+    useState<MessageAttachmentData | null>(null);
 
   const [error, setError] = useState("");
+
+  const attachmentInputRef =
+    useRef<HTMLInputElement>(null);
 
   // =========================
   // MODO
   // =========================
 
-  const isEditing = editingModel !== null;
+  const isEditing =
+    editingModel !== null;
 
   // =========================
   // GERAR ID AUTOMÁTICO
@@ -68,7 +89,11 @@ export default function CreateModelDialog({
         .substring(2, 10);
 
       id = `modelo-${parteAleatoria}`;
-    } while (models.some((model) => model.id === id));
+    } while (
+      models.some(
+        (model) => model.id === id
+      )
+    );
 
     return id;
   }
@@ -82,7 +107,9 @@ export default function CreateModelDialog({
       return;
     }
 
-    setModelTitle(editingModel.titulo);
+    setModelTitle(
+      editingModel.titulo
+    );
 
     setVariants(
       editingModel.variantes.map(
@@ -90,8 +117,11 @@ export default function CreateModelDialog({
       )
     );
 
-    setError("");
+    setAttachment(
+      editingModel.attachment ?? null
+    );
 
+    setError("");
     setOpen(true);
   }, [editingModel]);
 
@@ -101,15 +131,25 @@ export default function CreateModelDialog({
 
   function limparFormulario() {
     setModelTitle("");
+
     setVariants([""]);
+
+    setAttachment(null);
+
     setError("");
+
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = "";
+    }
   }
 
   // =========================
   // FECHAR
   // =========================
 
-  function handleOpenChange(value: boolean) {
+  function handleOpenChange(
+    value: boolean
+  ) {
     setOpen(value);
 
     if (!value) {
@@ -136,7 +176,9 @@ export default function CreateModelDialog({
   // REMOVER VARIANTE
   // =========================
 
-  function removerVariante(index: number) {
+  function removerVariante(
+    index: number
+  ) {
     if (variants.length <= 1) {
       return;
     }
@@ -168,13 +210,104 @@ export default function CreateModelDialog({
   }
 
   // =========================
+  // SELECIONAR ANEXO
+  // =========================
+
+  function getAttachmentType(
+  file: File
+): AttachmentType {
+  if (file.type.startsWith("image/")) {
+    return "image";
+  }
+
+  if (file.type.startsWith("video/")) {
+    return "video";
+  }
+
+  if (file.type.startsWith("audio/")) {
+    return "audio";
+  }
+
+  return "document";
+}
+
+  function selecionarAnexo(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file =
+      event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    // Limite de 10 MB
+    if (file.size > 10 * 1024 * 1024) {
+      setError(
+        "O anexo deve ter no máximo 10 MB."
+      );
+
+      event.target.value = "";
+      return;
+    }
+
+    setError("");
+
+    const newAttachment: MessageAttachmentData = {
+  file,
+  type: getAttachmentType(file),
+};
+
+    setAttachment(newAttachment);
+
+    // Permite selecionar novamente
+    // o mesmo arquivo depois.
+    event.target.value = "";
+  }
+
+  // =========================
+  // REMOVER ANEXO
+  // =========================
+
+  function removerAnexo() {
+    setAttachment(null);
+
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = "";
+    }
+  }
+
+  // =========================
+  // FORMATAR TAMANHO
+  // =========================
+
+  function formatarTamanhoArquivo(
+    bytes: number
+  ): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(2)} KB`;
+    }
+
+    return `${(
+      bytes /
+      1024 /
+      1024
+    ).toFixed(2)} MB`;
+  }
+
+  // =========================
   // SALVAR MODELO
   // =========================
 
   function salvarModelo() {
     setError("");
 
-    const titulo = modelTitle.trim();
+    const titulo =
+      modelTitle.trim();
 
     const textos = variants.map(
       (variant) => variant.trim()
@@ -198,7 +331,9 @@ export default function CreateModelDialog({
 
     if (
       textos.length === 0 ||
-      textos.some((texto) => !texto)
+      textos.some(
+        (texto) => !texto
+      )
     ) {
       setError(
         "Preencha todas as variantes."
@@ -211,22 +346,30 @@ export default function CreateModelDialog({
     // ID
     // =========================
 
-    // Durante a edição mantém o ID original.
-    // Durante a criação gera um novo ID.
-    const id = editingModel?.id ?? gerarIdUnico();
+    // Durante a edição mantém
+    // o ID original.
+
+    // Durante a criação gera
+    // um novo ID.
+    const id =
+      editingModel?.id ??
+      gerarIdUnico();
 
     // =========================
     // CRIA VARIANTES
     // =========================
 
     const modelVariants: MessageVariant[] =
-      textos.map((texto, index) => ({
-        id:
-          editingModel?.variantes[index]?.id ??
-          `${id}-${index + 1}`,
+      textos.map(
+        (texto, index) => ({
+          id:
+            editingModel
+              ?.variantes[index]?.id ??
+            `${id}-${index + 1}`,
 
-        texto,
-      }));
+          texto,
+        })
+      );
 
     // =========================
     // MODELO FINAL
@@ -236,6 +379,11 @@ export default function CreateModelDialog({
       id,
       titulo,
       variantes: modelVariants,
+
+      // Um único anexo
+      // compartilhado por todas
+      // as variantes.
+      attachment,
     };
 
     // =========================
@@ -282,7 +430,8 @@ export default function CreateModelDialog({
               type="button"
               disabled={sending}
             >
-              <Plus/> Criar modelo
+              <Plus />
+              Criar modelo
             </Button>
           }
         />
@@ -299,7 +448,6 @@ export default function CreateModelDialog({
               ? "Editar modelo de mensagem"
               : "Criar modelo de mensagem"}
           </DialogTitle>
-
         </DialogHeader>
 
         {/* =========================
@@ -332,14 +480,6 @@ export default function CreateModelDialog({
         ========================= */}
 
         <div className="space-y-4">
-
-         
-          
-
-          {/* =========================
-              LISTA DE VARIANTES
-          ========================= */}
-
           <div className="space-y-4">
             {variants.map(
               (variant, index) => (
@@ -361,18 +501,20 @@ export default function CreateModelDialog({
                         variant="delete"
                         size="sm"
                         onClick={() =>
-                          removerVariante(index)
+                          removerVariante(
+                            index
+                          )
                         }
                         disabled={sending}
                       >
-                        <X/>
+                        <X />
                       </Button>
                     )}
                   </div>
 
                   <Textarea
                     id={`variant-${index}`}
-                    placeholder={`Digite o texto da mensagem...`}
+                    placeholder="Digite o texto da mensagem..."
                     value={variant}
                     disabled={sending}
                     rows={5}
@@ -391,12 +533,102 @@ export default function CreateModelDialog({
               type="button"
               variant="outline"
               className="w-full"
-              onClick={adicionarVariante}
+              onClick={
+                adicionarVariante
+              }
               disabled={sending}
             >
               + Adicionar variação de mensagem
             </Button>
           </div>
+        </div>
+
+        {/* =========================
+            ANEXO
+        ========================= */}
+
+        <div className="space-y-3">
+
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            className="hidden"
+            onChange={selecionarAnexo}
+            disabled={sending}
+          />
+
+          {/* =========================
+              SEM ANEXO
+          ========================= */}
+
+          {!attachment && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() =>
+                attachmentInputRef.current?.click()
+              }
+              disabled={sending}
+            >
+              <Paperclip />
+              Adicionar anexo
+            </Button>
+          )}
+
+          {/* =========================
+              COM ANEXO
+          ========================= */}
+
+          {attachment && (
+            <div className="rounded-lg border p-3 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-muted">
+                  <Paperclip className="h-5 w-5" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">
+                    {attachment.file.name}
+                  </p>
+
+                  <p className="text-xs text-muted-foreground">
+                    {attachment.file.type ||
+                      "Tipo de arquivo não identificado"}{" "}
+                    •{" "}
+                    {formatarTamanhoArquivo(
+                      attachment.file.size
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() =>
+                    attachmentInputRef.current?.click()
+                  }
+                  disabled={sending}
+                >
+                  <Paperclip />
+                  Trocar anexo
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="delete"
+                  onClick={removerAnexo}
+                  disabled={sending}
+                >
+                  <Trash2 />
+                  Remover
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* =========================

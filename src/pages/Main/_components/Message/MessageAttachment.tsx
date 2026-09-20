@@ -1,5 +1,5 @@
-
 import { useRef } from "react";
+
 import {
   FileText,
   Image,
@@ -8,6 +8,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+
 import { Button } from "#components/ui/button";
 
 export type AttachmentType =
@@ -31,7 +32,7 @@ type Props = {
 
 function getAttachmentType(
   file: File
-): AttachmentType | null {
+): AttachmentType {
   if (file.type.startsWith("image/")) {
     return "image";
   }
@@ -44,17 +45,7 @@ function getAttachmentType(
     return "audio";
   }
 
-  if (
-    file.type === "application/pdf" ||
-    file.type === "text/plain" ||
-    file.type.includes("document") ||
-    file.type.includes("spreadsheet") ||
-    file.type.includes("presentation")
-  ) {
-    return "document";
-  }
-
-  return null;
+  return "document";
 }
 
 function getAttachmentIcon(
@@ -83,22 +74,19 @@ export default function MessageAttachment({
   onAttachmentChange,
   disabled = false,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef =
+    useRef<HTMLInputElement>(null);
 
   function handleFileChange(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) return;
 
-    const type = getAttachmentType(file);
-
-    if (!type) {
-      alert("Tipo de arquivo não suportado.");
-      event.target.value = "";
-      return;
-    }
+    const type =
+      getAttachmentType(file);
 
     onAttachmentChange({
       file,
@@ -113,7 +101,7 @@ export default function MessageAttachment({
   }
 
   return (
-    <div className="">
+    <div>
       <input
         ref={inputRef}
         type="file"
@@ -137,11 +125,12 @@ export default function MessageAttachment({
 
       {!attachment ? (
         <Button
-          variant ="secondary"
+          variant="secondary"
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={() =>
+            inputRef.current?.click()
+          }
           disabled={disabled}
-  
         >
           <Paperclip size={18} />
 
@@ -164,7 +153,9 @@ export default function MessageAttachment({
           "
         >
           <div className="flex items-center gap-2 min-w-0">
-            {getAttachmentIcon(attachment.type)}
+            {getAttachmentIcon(
+              attachment.type
+            )}
 
             <span
               className="text-sm truncate"
@@ -195,4 +186,3 @@ export default function MessageAttachment({
     </div>
   );
 }
-

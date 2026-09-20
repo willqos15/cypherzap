@@ -66,23 +66,27 @@ export default function MessageComposer({
         model.id === selectedModelId
     ) ?? null;
 
-  useEffect(() => {
-    if (selectedModelId === null) {
-      setMessage("");
-      return;
-    }
+ useEffect(() => {
+  if (selectedModelId === null) {
+    setMessage("");
+    onAttachmentChange(null);
+    return;
+  }
 
-    const model = models.find(
-      (item) => item.id === selectedModelId
-    );
+  const model = models.find(
+    (item) => item.id === selectedModelId
+  );
 
-    if (!model) {
-      setMessage("");
-      return;
-    }
+  if (!model) {
+    setMessage("");
+    onAttachmentChange(null);
+    return;
+  }
 
-    setMessage(model.variantes[0]?.texto ?? "");
-  }, [selectedModelId]);
+  setMessage(model.variantes[0]?.texto ?? "");
+
+  onAttachmentChange(model.attachment ?? null);
+}, [selectedModelId, models]);
 
   // Modelo que está sendo editado
   const [editingModel, setEditingModel] =
