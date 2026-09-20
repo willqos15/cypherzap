@@ -50,7 +50,7 @@ const previousSendingRef =
   }
 
   previousSendingRef.current = sending;
-}, [sending]);
+}, [sending, disconnecting, status]);
 
 
   return (
@@ -58,7 +58,6 @@ const previousSendingRef =
       <WhatsAppStatus
         status={status}
         qr={qr}
-        sending={sending}
         setAutorizado={setAutorizado}
       />
 
@@ -111,6 +110,10 @@ const previousSendingRef =
       </div>
 
  <div className={`
+  ${(!connected || disconnecting || !autorizado || sending)
+          ? "pointer-events-none opacity-50"
+          : ""
+        }
   ${modo === "historico" ? "block" : "hidden"}`}>
       <SendHistory
           refreshKey={historyRefreshKey}

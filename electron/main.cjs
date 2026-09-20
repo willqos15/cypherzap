@@ -25,6 +25,7 @@ let mainWindow = null;
 let sock = null;
 let whatsappStatus = "connecting";
 let licencaAtual = null;
+let numeroSessaoAtual = null;
 let reconnectTimeout = null;
 let manualLogout = false;
 const contacts = new Map();
@@ -32,6 +33,10 @@ const lidToPn = new Map();
 
 
 const db = require("../database/database.cjs");
+
+function getNumeroSessao() {
+  return numeroSessaoAtual;
+}
 
 
 function registrarEnvio({
@@ -41,11 +46,27 @@ function registrarEnvio({
   mensagem,
   erro = null
 }) {
+  const sessaoNumero = getNumeroSessao();
+
+  if (!sessaoNumero) {
+    throw new Error(
+      "Não foi possível identificar a sessão do WhatsApp."
+    );
+  }
+
   db.prepare(`
     INSERT INTO historico_envios
-    (lista_id, numero, status, mensagem, erro)
-    VALUES (?, ?, ?, ?, ?)
+    (
+      sessao_numero,
+      lista_id,
+      numero,
+      status,
+      mensagem,
+      erro
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
   `).run(
+    sessaoNumero,
     listaId,
     numero,
     status,
@@ -67,10 +88,25 @@ function registrarListaComoPendente({
     throw new Error("Lista de mensagens inválida.");
   }
 
+  const sessaoNumero = getNumeroSessao();
+
+  if (!sessaoNumero) {
+    throw new Error(
+      "Não foi possível identificar a sessão do WhatsApp."
+    );
+  }
+
   const stmt = db.prepare(`
     INSERT INTO historico_envios
-    (lista_id, numero, status, mensagem, erro)
-    VALUES (?, ?, ?, ?, ?)
+    (
+      sessao_numero,
+      lista_id,
+      numero,
+      status,
+      mensagem,
+      erro
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const inserirLista = db.transaction(() => {
@@ -80,6 +116,7 @@ function registrarListaComoPendente({
       const numero = numeros[i];
 
       const resultado = stmt.run(
+        sessaoNumero,
         listaId,
         numero,
         "Espera em fila",
@@ -94,10 +131,11 @@ function registrarListaComoPendente({
     }
 
     console.log("REGISTRAR PENDENTES:", {
-  listaId,
-  numeros,
-  mensagens
-});
+      sessaoNumero,
+      listaId,
+      numeros,
+      mensagens
+    });
 
     return ids;
   });
@@ -143,10 +181,19 @@ ipcMain.handle(
   "historico:get-envios",
   async () => {
     try {
+      const sessaoNumero = getNumeroSessao();
+
+      if (!sessaoNumero) {
+        throw new Error(
+          "Não foi possível identificar a sessão do WhatsApp."
+        );
+      }
+
       const envios = db
         .prepare(`
           SELECT
             id,
+            sessao_numero,
             lista_id,
             numero,
             status,
@@ -154,21 +201,20 @@ ipcMain.handle(
             mensagem,
             erro
           FROM historico_envios
+          WHERE sessao_numero = ?
           ORDER BY data_hora DESC, id DESC
         `)
-        .all();
+        .all(sessaoNumero);
 
       return envios;
     } catch (error) {
-      console.error(
-        "Erro ao buscar histórico de envios:",
-        error
-      );
+  console.error(
+    "ERRO REAL AO BUSCAR HISTÓRICO:",
+    error
+  );
 
-      throw new Error(
-        "Não foi possível carregar o histórico de envios."
-      );
-    }
+  throw error;
+}
   }
 );
 
@@ -884,6 +930,7 @@ async function resetWhatsAppAuth() {
 
   // Impede que o socket antigo interfira no novo fluxo
   sock = null;
+  numeroSessaoAtual = null;
 
   if (currentSock) {
     try {
@@ -904,6 +951,16 @@ async function resetWhatsAppAuth() {
       "whatsapp-status",
       "disconnected"
     );
+
+      mainWindow.webContents.send(
+  "whatsapp-session-changed",
+  null
+);
+
+    mainWindow.webContents.send(
+    "whatsapp-session-changed",
+    null
+  );
 
     mainWindow.webContents.send(
       "whatsapp-qr",
@@ -1109,6 +1166,12 @@ async function connectWhatsApp() {
 
         whatsappStatus = "connected";
 
+        numeroSessaoAtual = newSock.user?.id
+  ?.split(":")[0]
+  .split("@")[0]
+  .replace(/\D/g, "") || null;
+
+
         if (
           mainWindow &&
           !mainWindow.isDestroyed()
@@ -1117,7 +1180,15 @@ async function connectWhatsApp() {
             "whatsapp-status",
             "connected"
           );
+
+           mainWindow.webContents.send(
+      "whatsapp-session-changed",
+      numeroSessaoAtual
+    );
+  
+
         }
+   
 
         return;
       }
@@ -1139,6 +1210,7 @@ async function connectWhatsApp() {
 
         whatsappStatus = "disconnected";
         limparContatos();
+        numeroSessaoAtual = null;
 
         if (
           mainWindow &&
@@ -2671,6 +2743,7 @@ ipcMain.handle(
       // Primeiro invalida o socket global
       sock = null;
       limparContatos();
+      numeroSessaoAtual = null;
 
       if (currentSock) {
         try {
@@ -2689,6 +2762,8 @@ ipcMain.handle(
 
       whatsappStatus = "disconnected";
       licencaAtual = null;
+      
+      
 
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(
@@ -2700,6 +2775,11 @@ ipcMain.handle(
           "whatsapp-qr",
           null
         );
+
+        mainWindow.webContents.send(
+    "whatsapp-session-changed",
+    null
+  );
 
         mainWindow.webContents.send(
           "whatsapp-license",
@@ -2782,13 +2862,11 @@ ipcMain.handle(
 ipcMain.handle(
   "get-whatsapp-license",
   async () => {
-    if (!sock?.user?.id) {
+    const numero = getNumeroSessao();
+
+    if (!numero) {
       return null;
     }
-
-    const numero = sock.user.id
-      .split(":")[0]
-      .replace(/\D/g, "");
 
     return await atualizarLicenca(numero);
   }

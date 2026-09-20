@@ -57,12 +57,34 @@ onHistoricoEnvioAtualizado: (callback) => {
     listener
   );
 
+  
+
   return () => {
     ipcRenderer.removeListener(
       "historico:envio-atualizado",
       listener
     );
   };
+},
+
+
+
+onWhatsappSessionChanged: (callback) => {
+    const listener = (_, numero) => {
+        callback(numero);
+    };
+
+    ipcRenderer.on(
+        "whatsapp-session-changed",
+        listener
+    );
+
+    return () => {
+        ipcRenderer.removeListener(
+            "whatsapp-session-changed",
+            listener
+        );
+    };
 },
 
 registrarPendentes: (

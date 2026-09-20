@@ -23,16 +23,16 @@ declare global {
         channel: string,
         callback: (...args: any[]) => void
       ) => () => void;
-    
+
       onQR: (callback: (qr: string) => void) => () => void;
 
-    onStatus: (
-      callback: (status: string) => void
-    ) => () => void;
+      onStatus: (
+        callback: (status: string) => void
+      ) => () => void;
 
-     obterHistoricoEnvios(): Promise<
-  HistoricoEnvio[]
->;
+      obterHistoricoEnvios(): Promise<
+        HistoricoEnvio[]
+      >;
 
 
       getLicense(): Promise<Licenca | null>;
@@ -41,24 +41,24 @@ declare global {
         callback: (license: Licenca) => void
       ) => () => void;
 
-enviarMensagem(
-  number: string,
-  message: string,
-  attachment: {
-    type:
-      | "image"
-      | "video"
-      | "audio"
-      | "document";
-    buffer: ArrayBuffer;
-    fileName: string;
-    mimetype: string;
-  } | undefined,
-  listaId: string,
-  historicoId: number
-): Promise<boolean>;
+      enviarMensagem(
+        number: string,
+        message: string,
+        attachment: {
+          type:
+          | "image"
+          | "video"
+          | "audio"
+          | "document";
+          buffer: ArrayBuffer;
+          fileName: string;
+          mimetype: string;
+        } | undefined,
+        listaId: string,
+        historicoId: number
+      ): Promise<boolean>;
 
- onHistoricoEnvioAtualizado: (
+      onHistoricoEnvioAtualizado: (
         callback: (dados: {
           id: number;
           status: string;
@@ -67,14 +67,18 @@ enviarMensagem(
         }) => void
       ) => () => void;
 
-registrarPendentes(
-  listaId: string,
-  numeros: string[],
-  mensagens: string[]
-): Promise<{
-  numero: string;
-  id: number;
-}[]>;
+      registrarPendentes(
+        listaId: string,
+        numeros: string[],
+        mensagens: string[]
+      ): Promise<{
+        numero: string;
+        id: number;
+      }[]>;
+
+      onWhatsappSessionChanged: (
+        callback: (numero: string | null) => void
+      ) => () => void;
 
       desconectar(): Promise<boolean>;
 
@@ -94,20 +98,20 @@ registrarPendentes(
       }[]>;
 
 
-onContactsCount: (
-  callback: (count: number) => void
-) => () => void;
+      onContactsCount: (
+        callback: (count: number) => void
+      ) => () => void;
 
       exportContacts(): Promise<{
-    name: string;
-    number: string;
-}[]>;
+        name: string;
+        number: string;
+      }[]>;
 
 
-  getContactsCount: () => Promise<number>;
+      getContactsCount: () => Promise<number>;
 
-  
-exportAllGroupNumbers: () => Promise<GroupContact[]>;
+
+      exportAllGroupNumbers: () => Promise<GroupContact[]>;
 
     };
 

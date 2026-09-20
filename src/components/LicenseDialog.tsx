@@ -233,7 +233,7 @@ export default function LicenseDialog({
                 variant="secondary"
                 className="font-bold w-full"
               >
-                Adquirir licença
+                Solicitar licença
               </Button>
               </a>
             </div>

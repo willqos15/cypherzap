@@ -9,13 +9,11 @@ import { useWhatsApp } from "../../../context/WhatsAppContext";
 type Props = {
   status: string;
   qr: string | null;
-  sending: boolean;
   setAutorizado: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export default function WhatsAppStatus({
-  status, qr,
-  sending, setAutorizado
+  status, qr, setAutorizado
 }: Props) {
 
   const {
@@ -66,7 +64,7 @@ console.log("CONNECTED NO WHATSAPP STATUS:", connected);
 
       <section className="bg-white border-gray-300 border-b-2 py-4  px-10 flex flex-col mt-5">
         <h1 className="text-2xl font-bold my-2">
-          CypherZap 1.0.2 - Automação de WhatsApp
+          CypherZap 1.0.3 - Automação de WhatsApp
         </h1>
 
         <div className="flex gap-6 items-center">
@@ -78,7 +76,7 @@ console.log("CONNECTED NO WHATSAPP STATUS:", connected);
               <Button
                 variant="delete"
                 onClick={desconectar}
-                disabled={disconnecting || sending}
+                disabled={disconnecting}
               >
                 <LogOut />
                 {disconnecting
