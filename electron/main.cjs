@@ -30,6 +30,148 @@ let manualLogout = false;
 const contacts = new Map();
 const lidToPn = new Map();
 
+
+const db = require("../database/database.cjs");
+
+
+function registrarEnvio({
+  listaId,
+  numero,
+  status,
+  mensagem,
+  erro = null
+}) {
+  db.prepare(`
+    INSERT INTO historico_envios
+    (lista_id, numero, status, mensagem, erro)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(
+    listaId,
+    numero,
+    status,
+    mensagem,
+    erro
+  );
+}
+
+function registrarListaComoPendente({
+  listaId,
+  numeros,
+  mensagens
+}) {
+  if (!Array.isArray(numeros)) {
+    throw new Error("Lista de números inválida.");
+  }
+
+  if (!Array.isArray(mensagens)) {
+    throw new Error("Lista de mensagens inválida.");
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO historico_envios
+    (lista_id, numero, status, mensagem, erro)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  const inserirLista = db.transaction(() => {
+    const ids = [];
+
+    for (let i = 0; i < numeros.length; i++) {
+      const numero = numeros[i];
+
+      const resultado = stmt.run(
+        listaId,
+        numero,
+        "Espera em fila",
+        mensagens[i]?.trim() || null,
+        null
+      );
+
+      ids.push({
+        numero,
+        id: resultado.lastInsertRowid
+      });
+    }
+
+    console.log("REGISTRAR PENDENTES:", {
+  listaId,
+  numeros,
+  mensagens
+});
+
+    return ids;
+  });
+
+  return inserirLista();
+}
+
+function atualizarEnvio({
+  id,
+  status,
+  erro = null
+}) {
+  const dataHora = new Date().toISOString();
+
+  db.prepare(`
+    UPDATE historico_envios
+    SET
+      status = ?,
+      erro = ?,
+      data_hora = ?
+    WHERE id = ?
+  `).run(
+    status,
+    erro,
+    dataHora,
+    id
+  );
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(
+      "historico:envio-atualizado",
+      {
+        id,
+        status,
+        erro,
+        data_hora: dataHora
+      }
+    );
+  }
+}
+
+ipcMain.handle(
+  "historico:get-envios",
+  async () => {
+    try {
+      const envios = db
+        .prepare(`
+          SELECT
+            id,
+            lista_id,
+            numero,
+            status,
+            data_hora,
+            mensagem,
+            erro
+          FROM historico_envios
+          ORDER BY data_hora DESC, id DESC
+        `)
+        .all();
+
+      return envios;
+    } catch (error) {
+      console.error(
+        "Erro ao buscar histórico de envios:",
+        error
+      );
+
+      throw new Error(
+        "Não foi possível carregar o histórico de envios."
+      );
+    }
+  }
+);
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -144,7 +286,7 @@ function normalizePhone(value) {
 
   if (
 
-    phone.length === 8 
+    phone.length === 8
 
     //&& phone.startsWith("9")
 
@@ -1045,77 +1187,77 @@ async function connectWhatsApp() {
 
 
 
- newSock.ev.on(
-  "messaging-history.set",
-  ({
-    chats,
-    contacts: historyContacts,
-    lidPnMappings,
-  }) => {
+  newSock.ev.on(
+    "messaging-history.set",
+    ({
+      chats,
+      contacts: historyContacts,
+      lidPnMappings,
+    }) => {
 
-    if (chats?.length) {
-      console.log(
-        "EXEMPLO CHAT:",
-        chats[0]
-      );
-    }
-
-    // Guarda os mapeamentos LID -> PN
-    for (const mapping of lidPnMappings ?? []) {
-      if (!mapping.lid || !mapping.pn) {
-        continue;
+      if (chats?.length) {
+        console.log(
+          "EXEMPLO CHAT:",
+          chats[0]
+        );
       }
 
-      lidToPn.set(
-        mapping.lid,
-        mapping.pn
-      );
-    }
+      // Guarda os mapeamentos LID -> PN
+      for (const mapping of lidPnMappings ?? []) {
+        if (!mapping.lid || !mapping.pn) {
+          continue;
+        }
 
-    console.log(
-      "LID -> PN ARMAZENADOS:",
-      lidToPn.size
-    );
-
-    if (lidPnMappings?.length) {
-      console.log(
-        "LID MAPPINGS COMPLETO:",
-        JSON.stringify(
-          lidPnMappings,
-          null,
-          2
-        )
-      );
-    }
-
-    // Guarda os contatos
-    for (const contact of historyContacts ?? []) {
-      if (!isValidContactId(contact.id)) {
-        continue;
+        lidToPn.set(
+          mapping.lid,
+          mapping.pn
+        );
       }
 
-      const existing =
-        contacts.get(contact.id) || {};
+      console.log(
+        "LID -> PN ARMAZENADOS:",
+        lidToPn.size
+      );
 
-      contacts.set(contact.id, {
-        ...existing,
-        ...contact,
-      });
+      if (lidPnMappings?.length) {
+        console.log(
+          "LID MAPPINGS COMPLETO:",
+          JSON.stringify(
+            lidPnMappings,
+            null,
+            2
+          )
+        );
+      }
+
+      // Guarda os contatos
+      for (const contact of historyContacts ?? []) {
+        if (!isValidContactId(contact.id)) {
+          continue;
+        }
+
+        const existing =
+          contacts.get(contact.id) || {};
+
+        contacts.set(contact.id, {
+          ...existing,
+          ...contact,
+        });
+      }
+
+      console.log(
+        "CONTATOS DO HISTÓRICO:",
+        historyContacts?.length ?? 0
+      );
+
+      console.log(
+        "CONTATOS ARMAZENADOS:",
+        contacts.size
+      );
+
+      enviarContagemContatos();
     }
-
-    console.log(
-      "CONTATOS DO HISTÓRICO:",
-      historyContacts?.length ?? 0
-    );
-
-    console.log(
-      "CONTATOS ARMAZENADOS:",
-      contacts.size
-    );
-
-    enviarContagemContatos();
-  }
-);
+  );
 
   newSock.ev.on(
     "chats.upsert",
@@ -2316,8 +2458,13 @@ ipcMain.handle(
 
 ipcMain.handle(
   "send-message",
-  async (_, { number, message, attachment }) => {
-
+  async (_, {
+    number,
+    message,
+    attachment,
+    listaId,
+    historicoId
+  }) => {
 
     if (!licencaAtual?.autorizado) {
       throw new Error(
@@ -2331,8 +2478,7 @@ ipcMain.handle(
       );
     }
 
-    const cleanNumber =
-      number.replace(/\D/g, "");
+    const cleanNumber = number.replace(/\D/g, "");
 
     if (!cleanNumber) {
       throw new Error(
@@ -2340,127 +2486,177 @@ ipcMain.handle(
       );
     }
 
-    // Precisa existir pelo menos
-    // uma mensagem OU um anexo
     if (!message?.trim() && !attachment) {
       throw new Error(
         "Mensagem vazia e nenhum anexo."
       );
     }
 
-    // =========================
-    // VERIFICA WHATSAPP
-    // =========================
+    try {
 
-    const [result] =
-      await sock.onWhatsApp(cleanNumber);
+      // =========================
+      // VERIFICA WHATSAPP
+      // =========================
 
-    if (!result?.exists) {
-      throw new Error(
-        `Número ${cleanNumber} não possui WhatsApp.`
+      const [result] =
+        await sock.onWhatsApp(cleanNumber);
+
+      if (!result?.exists) {
+        throw new Error(
+          `Número ${cleanNumber} não possui WhatsApp.`
+        );
+      }
+
+      const jid = result.jid;
+
+      console.log(
+        "ENVIANDO PARA:",
+        jid
       );
-    }
 
-    const jid = result.jid;
+      // =========================
+      // SEM ANEXO
+      // =========================
 
-    console.log(
-      "ENVIANDO PARA:",
-      jid
-    );
+      if (!attachment) {
 
-    // =========================
-    // SEM ANEXO
-    // =========================
+        await sock.sendMessage(
+          jid,
+          {
+            text: message.trim()
+          }
+        );
 
-    if (!attachment) {
-      await sock.sendMessage(
-        jid,
-        {
-          text: message.trim()
+      } else {
+
+        // =========================
+        // CONVERTE ARRAYBUFFER
+        // =========================
+
+        const buffer = Buffer.from(
+          attachment.buffer
+        );
+
+        // =========================
+        // ANEXO
+        // =========================
+
+        switch (attachment.type) {
+
+          case "image":
+
+            await sock.sendMessage(
+              jid,
+              {
+                image: buffer,
+                mimetype: attachment.mimetype,
+                caption:
+                  message?.trim() || undefined
+              }
+            );
+
+            break;
+
+          case "video":
+
+            await sock.sendMessage(
+              jid,
+              {
+                video: buffer,
+                mimetype: attachment.mimetype,
+                caption:
+                  message?.trim() || undefined
+              }
+            );
+
+            break;
+
+          case "audio":
+
+            await sock.sendMessage(
+              jid,
+              {
+                audio: buffer,
+                mimetype: attachment.mimetype
+              }
+            );
+
+            break;
+
+          case "document":
+
+            await sock.sendMessage(
+              jid,
+              {
+                document: buffer,
+                mimetype: attachment.mimetype,
+                fileName: attachment.fileName,
+                caption:
+                  message?.trim() || undefined
+              }
+            );
+
+            break;
+
+          default:
+
+            throw new Error(
+              "Tipo de anexo não suportado."
+            );
         }
-      );
+      }
+
+      // =========================
+      // REGISTRA SUCESSO
+      // =========================
+
+      atualizarEnvio({
+  id: historicoId,
+  status: "Sucesso",
+  erro: null
+});
 
       return true;
+
+    } catch (error) {
+
+      // =========================
+      // REGISTRA ERRO
+      // =========================
+
+     atualizarEnvio({
+  id: historicoId,
+  status: "Falha",
+  erro: error.message
+});
+
+      throw error;
     }
-
-    // =========================
-    // CONVERTE ARRAYBUFFER
-    // =========================
-
-    const buffer =
-      Buffer.from(
-        attachment.buffer
-      );
-
-    // =========================
-    // ANEXO
-    // =========================
-
-    switch (attachment.type) {
-      case "image":
-        await sock.sendMessage(
-          jid,
-          {
-            image: buffer,
-            mimetype:
-              attachment.mimetype,
-            caption:
-              message?.trim() || undefined
-          }
-        );
-        break;
-
-      case "video":
-        await sock.sendMessage(
-          jid,
-          {
-            video: buffer,
-            mimetype:
-              attachment.mimetype,
-            caption:
-              message?.trim() || undefined
-          }
-        );
-        break;
-
-      case "audio":
-        await sock.sendMessage(
-          jid,
-          {
-            audio: buffer,
-            mimetype:
-              attachment.mimetype
-          }
-        );
-        break;
-
-      case "document":
-        await sock.sendMessage(
-          jid,
-          {
-            document: buffer,
-            mimetype:
-              attachment.mimetype,
-            fileName:
-              attachment.fileName,
-            caption:
-              message?.trim() || undefined
-          }
-        );
-        break;
-
-      default:
-        throw new Error(
-          "Tipo de anexo não suportado."
-        );
-    }
-
-    return true;
   }
 );
 
 
+ipcMain.handle(
+  "historico:registrar-pendentes",
+  async (_, { listaId, numeros, mensagens }) => {
+    try {
+      return registrarListaComoPendente({
+        listaId,
+        numeros,
+        mensagens
+      });
+    } catch (error) {
+      console.error(
+        "Erro ao registrar envios pendentes:",
+        error
+      );
 
+      throw new Error(
+        "Não foi possível registrar os envios pendentes."
+      );
+    }
+  }
+);
 
 ipcMain.handle(
   "logout-whatsapp",

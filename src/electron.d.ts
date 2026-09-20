@@ -30,7 +30,9 @@ declare global {
       callback: (status: string) => void
     ) => () => void;
 
-     
+     obterHistoricoEnvios(): Promise<
+  HistoricoEnvio[]
+>;
 
 
       getLicense(): Promise<Licenca | null>;
@@ -39,20 +41,40 @@ declare global {
         callback: (license: Licenca) => void
       ) => () => void;
 
-      enviarMensagem(
-        number: string,
-        message: string,
-        attachment?: {
-          type:
-          | "image"
-          | "video"
-          | "audio"
-          | "document";
-          buffer: ArrayBuffer;
-          fileName: string;
-          mimetype: string;
-        }
-      ): Promise<boolean>;
+enviarMensagem(
+  number: string,
+  message: string,
+  attachment: {
+    type:
+      | "image"
+      | "video"
+      | "audio"
+      | "document";
+    buffer: ArrayBuffer;
+    fileName: string;
+    mimetype: string;
+  } | undefined,
+  listaId: string,
+  historicoId: number
+): Promise<boolean>;
+
+ onHistoricoEnvioAtualizado: (
+        callback: (dados: {
+          id: number;
+          status: string;
+          erro: string | null;
+          data_hora: string;
+        }) => void
+      ) => () => void;
+
+registrarPendentes(
+  listaId: string,
+  numeros: string[],
+  mensagens: string[]
+): Promise<{
+  numero: string;
+  id: number;
+}[]>;
 
       desconectar(): Promise<boolean>;
 
@@ -91,4 +113,4 @@ exportAllGroupNumbers: () => Promise<GroupContact[]>;
 
   }
 
-}
+} 

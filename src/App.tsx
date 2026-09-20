@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 
 
@@ -12,13 +12,19 @@ import { GroupContactsExtractor } from "./pages/Main/_components/GroupContactsEx
 
 import { Button } from "#components/ui/button";
 import ExportContacts from "./pages/Main/_components/ExportContacts";
+import SendHistory from "./pages/Main/_components/History/SendHistory";
 
-type Modo = "envio" | "grupos";
+type Modo = "envio" | "extracao" | "historico";
 
 function AppContent() {
   const [autorizado, setAutorizado] = useState(false);
   const [sending, setSending] = useState(false);
   const [modo, setModo] = useState<Modo>("envio");
+  const [historyRefreshKey, setHistoryRefreshKey] =
+  useState(0);
+
+const previousSendingRef =
+  useRef(sending);
 
   const {
     status,
@@ -32,6 +38,19 @@ function AppContent() {
       setModo("envio");
     }
   }, [sending]);
+
+  useEffect(() => {
+  if (
+    previousSendingRef.current &&
+    !sending
+  ) {
+    setHistoryRefreshKey(
+      (prev) => prev + 1
+    );
+  }
+
+  previousSendingRef.current = sending;
+}, [sending]);
 
 
   return (
@@ -54,12 +73,20 @@ function AppContent() {
         </Button>
 
         <Button
-          variant={modo === "grupos" ? "secondary" : "ghost"}
+          variant={modo === "extracao" ? "secondary" : "ghost"}
           type="button"
-          onClick={() => setModo("grupos")}
+          onClick={() => setModo("extracao")}
           disabled={sending}
         >
           Modo Extração
+        </Button>
+
+        <Button
+          variant={modo === "historico" ? "secondary" : "ghost"}
+          type="button"
+          onClick={() => setModo("historico")}
+        >
+          Histórico de envios
         </Button>
       </div>
 
@@ -78,10 +105,16 @@ function AppContent() {
           ? "pointer-events-none opacity-50"
           : ""
         }
-  ${modo === "grupos" ? "block" : "hidden"}
-`}>
+  ${modo === "extracao" ? "block" : "hidden"}`}>
         <GroupContactsExtractor />
         <ExportContacts />
+      </div>
+
+ <div className={`
+  ${modo === "historico" ? "block" : "hidden"}`}>
+      <SendHistory
+          refreshKey={historyRefreshKey}
+        />
       </div>
     </>
   );

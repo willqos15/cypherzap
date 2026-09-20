@@ -41,17 +41,64 @@ onQR: (callback) => {
   };
 },
 
+obterHistoricoEnvios: () => {
+  return ipcRenderer.invoke(
+    "historico:get-envios"
+  );
+},
 
-  enviarMensagem: (number, message,  attachment) => {
-    return ipcRenderer.invoke(
-      "send-message",
-      {
-        number,
-        message,
-        attachment
-      }
+onHistoricoEnvioAtualizado: (callback) => {
+  const listener = (_event, dados) => {
+    callback(dados);
+  };
+
+  ipcRenderer.on(
+    "historico:envio-atualizado",
+    listener
+  );
+
+  return () => {
+    ipcRenderer.removeListener(
+      "historico:envio-atualizado",
+      listener
     );
-  },
+  };
+},
+
+registrarPendentes: (
+  listaId,
+  numeros,
+  mensagens
+) => {
+  return ipcRenderer.invoke(
+    "historico:registrar-pendentes",
+    {
+      listaId,
+      numeros,
+      mensagens
+    }
+  );
+},
+
+enviarMensagem: (
+  number,
+  message,
+  attachment,
+  listaId,
+  historicoId
+) => {
+  return ipcRenderer.invoke(
+    "send-message",
+    {
+      number,
+      message,
+      attachment,
+      listaId,
+      historicoId
+    }
+  );
+},
+
 
    desconectar: () => {
     return ipcRenderer.invoke(

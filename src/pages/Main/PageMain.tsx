@@ -77,7 +77,7 @@ export default function PageMain({ setSending, sending, autorizado }: InterfaceP
     setPauseDurationSeconds,
   ] = useState(60);
 
-
+  
 
   const queue = useMessageQueue({
     numbers,
@@ -91,6 +91,7 @@ export default function PageMain({ setSending, sending, autorizado }: InterfaceP
     message,
     attachment,
   });
+
 
   useEffect(() => {
     setSending(queue.sending);
@@ -110,6 +111,8 @@ useEffect(()=>{
   }
 }
 ,[numbers])
+
+
 
   return (
     <>

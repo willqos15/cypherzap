@@ -915,6 +915,8 @@ export function useMessageQueue({
   // ENVIAR FILA
   // =========================
 
+
+
   async function enviarFila() {
     // =========================
     // VALIDAÇÕES
@@ -983,6 +985,8 @@ export function useMessageQueue({
     // =========================
     // INICIA NOVA FILA
     // =========================
+
+    const listaId = crypto.randomUUID();
 
     setSending(true);
 
@@ -1087,6 +1091,18 @@ export function useMessageQueue({
       };
     }
 
+
+const mensagens = numbers.map((_, index) =>
+  getMessageForIndex(index)
+);
+
+const historicoPendentes =
+  await window.whatsapp.registrarPendentes(
+    listaId,
+    numbers,
+    mensagens
+  );
+
     // =========================
     // PROCESSA FILA
     // =========================
@@ -1138,10 +1154,13 @@ export function useMessageQueue({
       // =========================
 
       const index =
-        queueIndexRef.current;
+  queueIndexRef.current;
 
-      const number =
-        numbers[index];
+const number =
+  numbers[index];
+
+const historicoId =
+  historicoPendentes[index].id;
 
       // =========================
       // ESCOLHER MENSAGEM
@@ -1205,10 +1224,12 @@ export function useMessageQueue({
         }
 
         await window.whatsapp.enviarMensagem(
-          number,
-          messageToSend,
-          attachmentData
-        );
+  number,
+  messageToSend,
+  attachmentData,
+  listaId,
+  historicoId
+);
 
         setSendResults(
           (prev) => [

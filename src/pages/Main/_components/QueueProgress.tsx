@@ -40,6 +40,8 @@ export default function QueueProgress({
   numbers
 }: Props) {
 
+  
+
   if (total === 0) {
     return null;
   }
