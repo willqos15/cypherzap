@@ -32,7 +32,7 @@ const contacts = new Map();
 const lidToPn = new Map();
 
 
-const db = require("../database/database.cjs");
+const db = require("./database/database.cjs");
 
 function getNumeroSessao() {
   return numeroSessaoAtual;
