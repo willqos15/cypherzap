@@ -7,6 +7,22 @@ const {
 
 const path = require("path");
 
+const { autoUpdater } = require("electron-updater");
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
+autoUpdater.on('error', (error) => {
+    console.error('Erro ao atualizar:', error)
+})
+
+autoUpdater.on('update-available', () => {
+    console.log('Nova atualização encontrada.')
+})
+
+autoUpdater.on('update-downloaded', () => {
+    console.log('Atualização baixada. Será instalada ao fechar.')
+})
+
 Menu.setApplicationMenu(null);
 
 const makeWASocket =
@@ -272,6 +288,7 @@ function scheduleReconnect(delay) {
 
 app.whenReady().then(async () => {
   createWindow();
+  autoUpdater.checkForUpdatesAndNotify();
 
   try {
     await connectWhatsApp();
