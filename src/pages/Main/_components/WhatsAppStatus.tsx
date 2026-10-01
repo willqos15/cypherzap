@@ -64,7 +64,7 @@ console.log("CONNECTED NO WHATSAPP STATUS:", connected);
 
       <section className="bg-white border-gray-300 border-b-2 py-4  px-10 flex flex-col mt-5">
         <h1 className="text-2xl font-bold my-2">
-          CypherZap 1.0.3 - Automação de WhatsApp
+          CypherZap 1.0.4 - Automação de WhatsApp
         </h1>
 
         <div className="flex gap-6 items-center">
