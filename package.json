@@ -3,10 +3,15 @@
   "productName": "CypherZap",
   "author": "Canoa Tech",
   "description": "CypherZap - automatizador de mensagens.",
-  "publish": [ { "provider": "github", "owner": "willqos15", "repo": "cypherzap" } ] ,
-
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "willqos15",
+      "repo": "cypherzap"
+    }
+  ],
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "commonjs",
   "main": "electron/main.cjs",
   "scripts": {
@@ -26,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.2.6",
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.2",
     "lucide": "^1.37.0",
