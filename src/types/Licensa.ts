@@ -1,6 +1,9 @@
 export interface Licenca {
   autorizado: boolean;
-  numero: string;
+  deviceId?: string;
   validade: string | null;
-  motivo?: string;
+  motivo?: string | null;
+  maxDevices?: number | null;
+  usedDevices?: number | null;
+  remainingDevices?: number | null;
 }

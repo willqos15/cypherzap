@@ -1,8 +1,9 @@
 interface Licenca {
   autorizado: boolean;
-  numero: string;
+  deviceId?: string;
   validade: string | null;
-  motivo?: string;
+  motivo?: string | null;
+  maxDevices?: number | null;
 }
 
 
@@ -36,6 +37,12 @@ declare global {
 
 
       getLicense(): Promise<Licenca | null>;
+
+      getLicenseKey: () => Promise<string | null>;
+
+       saveLicense: (
+        key: string
+      ) => Promise<Licenca>;
 
       onLicense: (
         callback: (license: Licenca) => void

@@ -1,415 +1,555 @@
-import { formatNumber } from "#lib/utils";
-import { useState } from "react";
-import type { Licenca } from "../types/Licensa";
-import { Button } from "./ui/button";
+import { useEffect, useState } from "react";
+
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
 
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+
 import {
+  AlertCircle,
   CheckCircle2,
-  XCircle,
-  CreditCard,
+  Loader2,
+  Monitor,
+  CalendarDays,
+  Clock,
 } from "lucide-react";
 
+type License = {
+  autorizado: boolean;
+  deviceId?: string;
+  validade: string | null;
+  motivo?: string | null;
+  maxDevices?: number | null;
+  usedDevices?: number | null;
+  remainingDevices?: number | null;
+};
 
-interface LicenseDialogProps {
-  licenca: Licenca | null;
-  onLicenseUpdate: (license: Licenca | null) => void;
-}
+type LicenseDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
-function formatarData(data: string | null): string {
-  if (!data) {
-    return "-";
-  }
-
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(data)) {
-    return data;
-  }
-
-
-  const date = new Date(data);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return date.toLocaleDateString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  });
-}
-
-function calcularTempoRestante(data: string | null): string {
-  if (!data) {
-    return "-";
-  }
-
-  const validade = new Date(data);
-
-  if (Number.isNaN(validade.getTime())) {
-    return "-";
-  }
-
-  const agora = new Date();
-
-  if (validade <= agora) {
-    const diferenca =
-      agora.getTime() - validade.getTime();
-
-    const dias = Math.floor(
-      diferenca / (1000 * 60 * 60 * 24)
-    );
-
-    if (dias === 0) {
-      return "Vencida hoje";
-    }
-
-    return `Vencida há ${dias} ${
-      dias === 1 ? "dia" : "dias"
-    }`;
-  }
-
-  let anos =
-    validade.getFullYear() - agora.getFullYear();
-
-  let meses =
-    validade.getMonth() - agora.getMonth();
-
-  let dias =
-    validade.getDate() - agora.getDate();
-
-  if (dias < 0) {
-    meses--;
-
-    const ultimoDiaMesAnterior = new Date(
-      validade.getFullYear(),
-      validade.getMonth(),
-      0
-    ).getDate();
-
-    dias += ultimoDiaMesAnterior;
-  }
-
-  if (meses < 0) {
-    anos--;
-    meses += 12;
-  }
-
-  const partes: string[] = [];
-
-  if (anos > 0) {
-    partes.push(
-      `${anos} ${anos === 1 ? "ano" : "anos"}`
-    );
-  }
-
-  if (meses > 0) {
-    partes.push(
-      `${meses} ${meses === 1 ? "mês" : "meses"}`
-    );
-  }
-
-  if (dias > 0) {
-    partes.push(
-      `${dias} ${dias === 1 ? "dia" : "dias"}`
-    );
-  }
-
-  if (partes.length === 0) {
-    return "Vence hoje";
-  }
-
-  if (partes.length === 1) {
-    return partes[0];
-  }
-
-  if (partes.length === 2) {
-    return `${partes[0]} e ${partes[1]}`;
-  }
-
-  return `${partes[0]}, ${partes[1]} e ${partes[2]}`;
-}
-
-export default function LicenseDialog({
-  licenca, onLicenseUpdate
+export function LicenseDialog({
+  open,
+  onOpenChange,
 }: LicenseDialogProps) {
-  const autorizado = licenca?.autorizado ?? false;
+  const [license, setLicense] =
+    useState<License | null>(null);
 
-  const [solicitando, setSolicitando] = useState(false);
-const [mensagemSolicitacao, setMensagemSolicitacao] =
-  useState<string | null>(null);
+  const [licenseKey, setLicenseKey] =
+    useState("");
 
-  // Não possui licença cadastrada
-  const semLicenca =
-    !licenca || licenca.validade === null;
+  const [loading, setLoading] =
+    useState(false);
 
-  const dataFormatada = formatarData(
-    licenca?.validade ?? null
-  );
+  const [error, setError] =
+    useState("");
 
-  const tempoRestante = calcularTempoRestante(
-    licenca?.validade ?? null
-  );
+  const [success, setSuccess] =
+    useState(false);
 
+  const [trocandoLicenca, setTrocandoLicenca] =
+    useState(false);
 
-  async function solicitarLicenca() {
-  try {
-    setSolicitando(true);
-    setMensagemSolicitacao(null);
+  useEffect(() => {
+    carregarLicenca();
 
-    const license = await window.whatsapp.getLicense();
+    const removerListener =
+      window.whatsapp.onLicense((novaLicenca) => {
+        console.log(
+          "LICENÇA ATUALIZADA:",
+          novaLicenca
+        );
 
-    if (!license?.numero) {
-      setMensagemSolicitacao(
-        "Erro: não foi possível identificar o número do WhatsApp."
+        setLicense(novaLicenca);
+
+        if (novaLicenca?.autorizado) {
+          setSuccess(false);
+          setError("");
+        }
+      });
+
+    return removerListener;
+  }, []);
+
+  async function carregarLicenca() {
+    try {
+      const resultado =
+        await window.whatsapp.getLicense();
+
+      console.log(
+        "LICENÇA RECUPERADA:",
+        resultado
       );
-      return;
-    }
 
+      setLicense(resultado);
 
-    const response = await fetch(
-      "https://cypherzap-licenca.willqos15.workers.dev/licenca/solicitar",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          numero: license.numero,
-        }),
+      const key =
+        await window.whatsapp.getLicenseKey();
+
+      if (key) {
+        setLicenseKey(key);
       }
-    );
-
-    // Tenta ler a resposta da API
-    const data = await response.json();
-
-    console.log("RESPOSTA DA API:", data);
-
-    // API retornou erro HTTP
-    if (!response.ok) {
-      setMensagemSolicitacao(
-        `Erro: ${data?.motivo || data?.erro || "Erro desconhecido"}`
+    } catch (error) {
+      console.error(
+        "Erro ao carregar licença:",
+        error
       );
-      return;
     }
-
-    // API retornou erro próprio
-    if (!data.sucesso) {
-      setMensagemSolicitacao(
-        `Erro: ${data?.motivo || data?.erro || "Erro desconhecido"}`
-      );
-      return;
-    }
-
-    // Sucesso
-    setMensagemSolicitacao(
-      "Licença solicitada com sucesso. Aguarde a ativação."
-    );
-
-  } catch (error) {
-    console.error("ERRO AO SOLICITAR LICENÇA:", error);
-
-    setMensagemSolicitacao(
-      `Erro: ${
-        error instanceof Error
-          ? error.message
-          : String(error)
-      }`
-    );
-  } finally {
-    setSolicitando(false);
   }
-}
+
+  function extrairMensagemErro(error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    console.error(
+      "Mensagem original do erro:",
+      message
+    );
+
+    const partes = message.split("Error:");
+
+    if (partes.length > 1) {
+      return partes[partes.length - 1].trim();
+    }
+
+    return (
+      message ||
+      "Não foi possível validar a licença."
+    );
+  }
+
+  function calcularDiasRestantes() {
+    if (!license?.validade) {
+      return null;
+    }
+
+    const agora = new Date();
+
+    const validade =
+      new Date(license.validade);
+
+    const diferenca =
+      validade.getTime() -
+      agora.getTime();
+
+    const dias = Math.ceil(
+      diferenca /
+        (1000 * 60 * 60 * 24)
+    );
+
+    return Math.max(dias, 0);
+  }
+
+  function formatarDataValidade() {
+    if (!license?.validade) {
+      return "Sem validade";
+    }
+
+    return new Date(
+      license.validade
+    ).toLocaleDateString("pt-BR");
+  }
 
 
+
+  async function iniciarTrocaLicenca() {
+    setLoading(true);
+    setError("");
+    setSuccess(false);
+
+    try {
+      const licencaAtualizada =
+        await window.whatsapp.getLicense();
+
+      console.log(
+        "LICENÇA VERIFICADA ANTES DO CADASTRO:",
+        licencaAtualizada
+      );
+
+      setLicense(licencaAtualizada);
+
+      const expirada =
+        !!licencaAtualizada?.validade &&
+        new Date(
+          licencaAtualizada.validade
+        ) <= new Date();
+
+      const podeCadastrar =
+        licencaAtualizada?.autorizado ||
+        expirada;
+
+      if (!podeCadastrar) {
+        setError(
+          licencaAtualizada?.motivo ||
+            "A licença atual não permite cadastrar outra licença."
+        );
+
+        return;
+      }
+
+      setTrocandoLicenca(true);
+      setLicenseKey("");
+    } catch (error) {
+      console.error(
+        "Erro ao verificar licença antes do cadastro:",
+        error
+      );
+
+      setError(
+        extrairMensagemErro(error)
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    const key =
+      licenseKey.trim();
+
+    if (!key) {
+      setError(
+        "Informe a chave da licença."
+      );
+
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccess(false);
+
+    try {
+      const resultado =
+        await window.whatsapp.saveLicense(
+          key
+        );
+
+      console.log(
+        "RESULTADO DA NOVA LICENÇA:",
+        resultado
+      );
+
+      /*
+       * Uma licença só é substituída
+       * se o cadastro for aceito.
+       */
+      if (!resultado) {
+        setError(
+          "Não foi possível cadastrar a licença."
+        );
+
+        return;
+      }
+
+      /*
+       * Licença válida:
+       * substitui a licença anterior.
+       */
+      if (resultado.autorizado) {
+        setLicense(resultado);
+
+        setSuccess(true);
+
+        setTrocandoLicenca(false);
+
+        return;
+      }
+
+      /*
+       * Licença expirada:
+       * também será cadastrada.
+       *
+       * O Worker precisa devolver:
+       * valid: false
+       * expires_at: data da expiração
+       * max_devices: limite de dispositivos
+       * error: "Licença expirada"
+       */
+      const novaLicencaExpirada =
+        !!resultado.validade &&
+        new Date(resultado.validade) <= new Date();
+
+      if (novaLicencaExpirada) {
+        setLicense(resultado);
+
+        setSuccess(true);
+
+        setTrocandoLicenca(false);
+
+        return;
+      }
+
+      /*
+       * Outra licença inválida:
+       * mantém a licença anterior.
+       */
+      setError(
+        resultado.motivo ||
+          "A licença informada não é válida."
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao salvar licença:",
+        error
+      );
+
+      const message =
+        extrairMensagemErro(error);
+
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const diasRestantes =
+    calcularDiasRestantes();
+
+  const licenseAtiva =
+    license?.autorizado === true;
+
+  const licenseExpirada =
+    !!license?.validade &&
+    new Date(license.validade) <= new Date();
 
 
   return (
     <Dialog
-  onOpenChange={(open) => {
-    if (!open) return;
-
-    window.whatsapp.getLicense().then((license) => {
-      console.log("LICENÇA REVERIFICADA:", license);
-
-      onLicenseUpdate(license);
-    });
-  }}
->
-      <DialogTrigger
-        render={
-          <button
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition hover:bg-muted ${
-              semLicenca
-                ? "border-yellow-500/50"
-                : ""
-            }`}
-          >
-            {semLicenca ? (
-              <>
-                <CreditCard className="h-4 w-4 text-yellow-500" />
-
-                <span className="text-sm font-medium">
-                  Verificar Licença
-                </span>
-              </>
-            ) : autorizado ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-
-                <span className="text-sm font-medium">
-                  Licença ativa
-                </span>
-              </>
-            ) : (
-              <>
-                <XCircle className="h-4 w-4 text-red-500" />
-
-                <span className="text-sm font-medium">
-                  Licença desativada
-                </span>
-              </>
-            )}
-          </button>
-        }
-      />
+      open={open}
+      onOpenChange={onOpenChange}
+    >
+<DialogTrigger
+  render={
+    <Button
+      type="button"
+      variant="outline"
+    >
+      {licenseAtiva ? (
+        <>
+          <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
+          Licença ativa
+        </>
+      ) : licenseExpirada ? (
+        <>
+          <AlertCircle className="mr-2 h-4 w-4 text-yellow-500" />
+          Licença expirada
+        </>
+      ) : (
+        <>
+          <AlertCircle className="mr-2 h-4 w-4 text-red-500" />
+          Sem licença
+        </>
+      )}
+    </Button>
+  }
+/>
 
       <DialogContent className="sm:max-w-md">
-        {semLicenca ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>
-                Licença necessária
-              </DialogTitle>
+        <DialogHeader>
+  <DialogTitle className="flex items-center gap-2">
+  {licenseAtiva &&
+  !trocandoLicenca ? (
+    <>
+      <CheckCircle2 className="h-5 w-5 text-green-500" />
+      Licença ativa
+    </>
+  ) : licenseExpirada &&
+    !trocandoLicenca ? (
+    <>
+      <AlertCircle className="h-5 w-5 text-yellow-500" />
+      Licença expirada
+    </>
+  ) : (
+    <>
+      <AlertCircle className="h-5 w-5 text-red-500" />
+      Cadastrar licença
+    </>
+  )}
+</DialogTitle>
 
-            </DialogHeader>
+          <DialogDescription>
+            {licenseAtiva &&
+            !trocandoLicenca
+              ? "Confira os detalhes da licença deste dispositivo."
+              : licenseExpirada &&
+                !trocandoLicenca
+              ? "A licença deste dispositivo está expirada."
+              : "Informe a chave da licença para cadastrar neste dispositivo."}
+          </DialogDescription>
+        </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="rounded-lg border p-4 text-center">
-                <CreditCard className="mx-auto mb-3 h-10 w-10 text-yellow-500" />
+        {(licenseAtiva || licenseExpirada) &&
+        !trocandoLicenca ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-md border p-3">
+              <CalendarDays className="h-5 w-5" />
 
-                <h3 className="font-semibold">
-                  Ative sua licença
-                </h3>
-
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Para utilizar todos os recursos do
-                  sistema, é necessário adquirir uma
-                  licença.
-                </p>
-              </div>
-
-
-          <Button
-  type="button"
-  variant="secondary"
-  className="font-bold w-full"
-  onClick={solicitarLicenca}
-  disabled={solicitando}
->
-  {solicitando
-    ? "Solicitando..."
-    : "Solicitar licença"}
-</Button>
-
-{mensagemSolicitacao && (
-  <p className="text-center text-sm text-muted-foreground">
-    {mensagemSolicitacao}
-  </p>
-)}
-            </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle className="font-bold">
-                Detalhes da licença
-              </DialogTitle>
-
-
-            </DialogHeader>
-
-            <div className="space-y-4">
-              {/* Status */}
-              <div className="flex gap-4 items-center rounded-lg border p-3">
-                <span className="text-sm text-muted-foreground">
-                  Status
-                </span>
-
-                <div className="flex items-center gap-2">
-                  {autorizado ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-
-                      <span className="font-medium text-green-600">
-                        Ativo
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="h-4 w-4 text-red-500" />
-
-                      <span className="font-medium text-red-600">
-                        Desativado
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Número */}
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">
-                  Número
-                </p>
-
-                <p className="mt-1 font-medium">
-                  {formatNumber(licenca.numero)}
-                </p>
-              </div>
-
-              {/* Validade */}
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">
+              <div>
+                <p className="text-sm font-medium">
                   Validade
                 </p>
 
-                <p className="mt-1 font-medium">
-                  {dataFormatada}
+                <p className="text-sm text-muted-foreground">
+                  {formatarDataValidade()}
                 </p>
               </div>
-
-              {/* Tempo restante */}
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">
-                  {autorizado
-                    ? "Tempo restante"
-                    : "Situação da validade"}
-                </p>
-
-                <p className="mt-1 font-medium">
-                  {tempoRestante}
-                </p>
-              </div>
-
-              {/* Motivo */}
-              {!autorizado && licenca.motivo && (
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">
-                    Motivo
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {licenca.motivo}
-                  </p>
-                </div>
-              )}
             </div>
-          </>
+
+            <div className="flex items-center gap-3 rounded-md border p-3">
+              <Clock className="h-5 w-5" />
+
+              <div>
+                <p className="text-sm font-medium">
+                  Tempo restante
+                </p>
+
+                <p className="text-sm text-muted-foreground">
+                  {diasRestantes === null
+                    ? "Sem validade"
+                    : diasRestantes === 1
+                    ? "1 dia restante"
+                    : `${diasRestantes} dias restantes`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-md border p-3">
+              <Monitor className="h-5 w-5" />
+
+              <div>
+  <p className="text-sm text-muted-foreground">
+    Computadores
+  </p>
+
+  <p className="font-medium">
+    {license?.usedDevices ?? 0} / {license?.maxDevices ?? 0}
+  </p>
+
+  <p className="text-xs text-muted-foreground">
+    {license?.remainingDevices ?? 0} disponível
+    {license?.remainingDevices !== 1 ? "is" : ""}
+  </p>
+</div>
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              disabled={loading}
+              onClick={iniciarTrocaLicenca}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                "Mudar licença"
+              )}
+            </Button>
+
+            {error && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+
+                <span>{error}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Input
+                value={licenseKey}
+                onChange={(event) => {
+                  setLicenseKey(
+                    event.target.value
+                  );
+
+                  setError("");
+                  setSuccess(false);
+                }}
+                placeholder="Digite sua chave de licença"
+                disabled={loading}
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+
+                <span>{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="flex items-center gap-2 rounded-md border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-600">
+                <CheckCircle2 className="h-4 w-4" />
+
+                <span>
+                  Licença cadastrada com sucesso!
+                </span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              variant="secondary"
+              className="w-full"
+              disabled={
+                loading ||
+                !licenseKey.trim()
+              }
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cadastrando...
+                </>
+              ) : (
+                "Cadastrar licença"
+              )}
+            </Button>
+
+            {(licenseAtiva ||
+              licenseExpirada) &&
+              trocandoLicenca && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  disabled={loading}
+                  onClick={() => {
+                    setTrocandoLicenca(false);
+                    setError("");
+                    setSuccess(false);
+                    setLicenseKey("");
+                  }}
+                >
+                  Voltar para detalhes
+                </Button>
+              )}
+          </form>
         )}
       </DialogContent>
     </Dialog>

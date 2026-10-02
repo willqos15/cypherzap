@@ -12,15 +12,15 @@ autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 
 autoUpdater.on('error', (error) => {
-    console.error('Erro ao atualizar:', error)
+  console.error('Erro ao atualizar:', error)
 })
 
 autoUpdater.on('update-available', () => {
-    console.log('Nova atualização encontrada.')
+  console.log('Nova atualização encontrada.')
 })
 
 autoUpdater.on('update-downloaded', () => {
-    console.log('Atualização baixada. Será instalada ao fechar.')
+  console.log('Atualização baixada. Será instalada ao fechar.')
 })
 
 Menu.setApplicationMenu(null);
@@ -37,6 +37,7 @@ const { env } = require("process");
 
 
 
+
 let mainWindow = null;
 let sock = null;
 let whatsappStatus = "connecting";
@@ -46,6 +47,74 @@ let reconnectTimeout = null;
 let manualLogout = false;
 const contacts = new Map();
 const lidToPn = new Map();
+
+let deviceIdAtual = null;
+
+const crypto = require("crypto");
+const { execFileSync } = require("child_process");
+const fs = require("fs");
+
+function getDeviceId() {
+  if (deviceIdAtual) {
+    return deviceIdAtual;
+  }
+
+  try {
+    const machineId = execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        "(Get-CimInstance Win32_ComputerSystemProduct).UUID"
+      ],
+      { encoding: "utf8" }
+    ).trim();
+
+    if (!machineId) {
+      throw new Error("UUID da máquina não encontrado.");
+    }
+
+    deviceIdAtual = crypto
+      .createHash("sha256")
+      .update(machineId)
+      .digest("hex");
+
+    return deviceIdAtual;
+  } catch (error) {
+    console.error(
+      "Erro ao obter identificação da máquina:",
+      error
+    );
+
+    throw error;
+  }
+}
+
+function getLicenseKey() {
+  const licensePath = path.join(
+    app.getPath("userData"),
+    "license-key"
+  );
+
+  if (!fs.existsSync(licensePath)) {
+    return null;
+  }
+
+  return fs.readFileSync(licensePath, "utf8").trim() || null;
+}
+
+function saveLicenseKey(key) {
+  const licensePath = path.join(
+    app.getPath("userData"),
+    "license-key"
+  );
+
+  fs.writeFileSync(
+    licensePath,
+    key.trim(),
+    "utf8"
+  );
+}
 
 
 const db = require("./database/database.cjs");
@@ -224,13 +293,13 @@ ipcMain.handle(
 
       return envios;
     } catch (error) {
-  console.error(
-    "ERRO REAL AO BUSCAR HISTÓRICO:",
-    error
-  );
+      console.error(
+        "ERRO REAL AO BUSCAR HISTÓRICO:",
+        error
+      );
 
-  throw error;
-}
+      throw error;
+    }
   }
 );
 
@@ -246,7 +315,8 @@ function createWindow() {
     }
   });
 
-  //mainWindow.webContents.openDevTools();
+  //CONSOLE LOG PARA TESTE
+  mainWindow.webContents.openDevTools();
 
   if (!app.isPackaged) {
     mainWindow.loadURL("http://localhost:5173");
@@ -288,12 +358,33 @@ function scheduleReconnect(delay) {
 
 app.whenReady().then(async () => {
   createWindow();
+
   autoUpdater.checkForUpdatesAndNotify();
+
+  try {
+    await atualizarLicenca();
+
+    if (licencaAtual?.autorizado) {
+      await connectWhatsApp();
+    } else {
+      console.log(
+        "WhatsApp não iniciado: licença não autorizada."
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Erro ao verificar licença:",
+      error
+    );
+  }
 
   try {
     await connectWhatsApp();
   } catch (error) {
-    console.error("Erro ao iniciar WhatsApp:", error);
+    console.error(
+      "Erro ao iniciar WhatsApp:",
+      error
+    );
   }
 
   app.on("activate", () => {
@@ -387,23 +478,48 @@ function normalizePhone(value) {
 
 }
 
-async function atualizarLicenca(numero) {
+async function atualizarLicenca() {
   try {
-    const resultado = await verificarLicenca(numero);
+    const licenseKey = getLicenseKey();
+
+    if (!licenseKey) {
+      licencaAtual = {
+        autorizado: false,
+        deviceId: getDeviceId(),
+        validade: null,
+        motivo: "LICENCA_NAO_INFORMADA",
+      };
+
+      enviarLicencaParaFront();
+
+      return licencaAtual;
+    }
+
+    const resultado = await verificarLicenca(
+      licenseKey
+    );
 
     licencaAtual = {
-      autorizado: resultado.autorizado,
-      numero,
-      validade: resultado.validade ?? null,
-      motivo: resultado.motivo,
-    };
+  autorizado: resultado.valid === true,
+  deviceId: getDeviceId(),
+  validade: resultado.expires_at ?? null,
+  motivo:
+    resultado.error ||
+    resultado.message ||
+    null,
+  maxDevices: resultado.max_devices ?? null,
+  usedDevices: resultado.used_devices ?? null,
+  remainingDevices: resultado.remaining_devices ?? null,
+};
 
-    console.log("LICENÇA ATUAL:", licencaAtual);
+    console.log(
+      "LICENÇA ATUAL:",
+      licencaAtual
+    );
 
     enviarLicencaParaFront();
 
     return licencaAtual;
-
   } catch (error) {
     console.error(
       "Erro ao atualizar licença:",
@@ -412,9 +528,10 @@ async function atualizarLicenca(numero) {
 
     licencaAtual = {
       autorizado: false,
-      numero,
+      deviceId: getDeviceId(),
       validade: null,
-      motivo: "Não foi possível verificar a licença",
+      motivo:
+        "Não foi possível verificar a licença",
     };
 
     enviarLicencaParaFront();
@@ -743,157 +860,47 @@ ipcMain.handle("whatsapp:export-contacts", async () => {
   return result;
 });
 
-async function verificarLicenca(numero) {
+async function verificarLicenca(key) {
   try {
-    // =========================
-    // 1. Normaliza o número
-    // =========================
+    const deviceId = getDeviceId();
 
-    const numeroNormalizado = normalizePhone(numero);
-
-    console.log("Número original:", numero);
-    console.log("Número normalizado:", numeroNormalizado);
-
-    if (!numeroNormalizado) {
-      console.error("Número inválido:", numero);
-
-      return {
-        autorizado: false,
-        validade: null,
-        numero: null,
-        erro: "NUMERO_INVALIDO",
-        motivo: "Número de WhatsApp inválido",
-      };
-    }
-
-    // =========================
-    // 2. Monta URL do Worker
-    // =========================
-
-    const url =
-      "https://cypherzap-licenca.willqos15.workers.dev/licenca" +
-      `?numero=${encodeURIComponent(numeroNormalizado)}`;
-
-    console.log("Consultando Cloudflare Worker:");
-    console.log(url);
-
-    // =========================
-    // 3. Faz requisição
-    // =========================
-
-    const response = await fetch(url);
-
-    console.log("HTTP:", response.status);
-    console.log("OK:", response.ok);
-
-    // =========================
-    // 4. Pega resposta
-    // =========================
-
-    const texto = await response.text();
-
-    console.log("Resposta bruta do Cloudflare:");
-    console.log(texto);
-
-    // =========================
-    // 5. Verifica HTTP
-    // =========================
-
-    if (!response.ok) {
-      throw new Error(
-        `HTTP ${response.status}: ${texto}`
-      );
-    }
-
-    // =========================
-    // 6. Converte para JSON
-    // =========================
-
-    let resultado;
-
-    try {
-      resultado = JSON.parse(texto);
-    } catch (error) {
-      console.error(
-        "Resposta do Cloudflare não é JSON:",
-        texto
-      );
-
-      throw new Error(
-        `Resposta não é JSON válido: ${texto}`
-      );
-    }
-
-    // =========================
-    // 7. Exibe resultado
-    // =========================
-
-    console.log(
-      "Resultado da verificação:",
-      resultado
+    const response = await fetch(
+      "https://cz-licenses.willqos15.workers.dev/license/verify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          key,
+          device_id: deviceId,
+        }),
+      }
     );
 
-    // =========================
-    // 8. Licença não autorizada
-    // =========================
+    const resultado = await response.json();
 
-    if (!resultado.autorizado) {
-      console.error(
-        "LICENÇA NÃO AUTORIZADA"
-      );
-
-      console.error(
-        "Código do erro:",
-        resultado.erro
-      );
-
-      console.error(
-        "Motivo:",
-        resultado.motivo
-      );
-    }
-
-    // =========================
-    // 9. Retorna resultado
-    // =========================
+    console.log(
+      "RESPOSTA DA LICENÇA:",
+      resultado
+    );
 
     return resultado;
 
   } catch (error) {
-    // =========================
-    // 10. Erro de conexão
-    // =========================
-
-    console.error(
-      "ERRO AO VERIFICAR LICENÇA:"
-    );
-
-    console.error(
-      "Objeto completo:",
-      error
-    );
-
-    console.error(
-      "Mensagem:",
-      error instanceof Error
-        ? error.message
-        : String(error)
-    );
+    console.error("Erro ao verificar licença:", error);
 
     return {
-      autorizado: false,
-      validade: null,
-      numero: null,
-      erro: "ERRO_CONEXAO",
-      motivo:
-        error instanceof Error
-          ? error.message
-          : String(error),
+      valid: false,
+      error: "ERRO_CONEXAO",
+      message: error.message,
     };
   }
 }
 
-const fs = require("fs");
+
+
+
 
 async function enviarContagemContatos() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -969,15 +976,15 @@ async function resetWhatsAppAuth() {
       "disconnected"
     );
 
-      mainWindow.webContents.send(
-  "whatsapp-session-changed",
-  null
-);
+    mainWindow.webContents.send(
+      "whatsapp-session-changed",
+      null
+    );
 
     mainWindow.webContents.send(
-    "whatsapp-session-changed",
-    null
-  );
+      "whatsapp-session-changed",
+      null
+    );
 
     mainWindow.webContents.send(
       "whatsapp-qr",
@@ -1184,9 +1191,9 @@ async function connectWhatsApp() {
         whatsappStatus = "connected";
 
         numeroSessaoAtual = newSock.user?.id
-  ?.split(":")[0]
-  .split("@")[0]
-  .replace(/\D/g, "") || null;
+          ?.split(":")[0]
+          .split("@")[0]
+          .replace(/\D/g, "") || null;
 
 
         if (
@@ -1198,14 +1205,14 @@ async function connectWhatsApp() {
             "connected"
           );
 
-           mainWindow.webContents.send(
-      "whatsapp-session-changed",
-      numeroSessaoAtual
-    );
-  
+          mainWindow.webContents.send(
+            "whatsapp-session-changed",
+            numeroSessaoAtual
+          );
+
 
         }
-   
+
 
         return;
       }
@@ -1820,16 +1827,7 @@ ipcMain.handle("whatsapp:export-group-numbers", async (_, groupId) => {
       );
     }
 
-    // -------------------------------------------------------
-    // 5. PROCURAR MAPEAMENTO REVERSO
-    // -------------------------------------------------------
-    /*
-     * Se já tivermos algum PN relacionado, podemos tentar
-     * verificar o mapeamento reverso.
-     *
-     * Aqui não inventamos o PN. Apenas verificamos se a
-     * estrutura do mapping está disponível.
-     */
+
 
     try {
       const mapping =
@@ -2700,10 +2698,10 @@ ipcMain.handle(
       // =========================
 
       atualizarEnvio({
-  id: historicoId,
-  status: "Sucesso",
-  erro: null
-});
+        id: historicoId,
+        status: "Sucesso",
+        erro: null
+      });
 
       return true;
 
@@ -2713,11 +2711,11 @@ ipcMain.handle(
       // REGISTRA ERRO
       // =========================
 
-     atualizarEnvio({
-  id: historicoId,
-  status: "Falha",
-  erro: error.message
-});
+      atualizarEnvio({
+        id: historicoId,
+        status: "Falha",
+        erro: error.message
+      });
 
       throw error;
     }
@@ -2779,8 +2777,8 @@ ipcMain.handle(
 
       whatsappStatus = "disconnected";
       licencaAtual = null;
-      
-      
+
+
 
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(
@@ -2794,9 +2792,9 @@ ipcMain.handle(
         );
 
         mainWindow.webContents.send(
-    "whatsapp-session-changed",
-    null
-  );
+          "whatsapp-session-changed",
+          null
+        );
 
         mainWindow.webContents.send(
           "whatsapp-license",
@@ -2840,6 +2838,7 @@ ipcMain.handle(
         "LOGOUT CONCLUÍDO. GERANDO NOVO QR..."
       );
 
+      await atualizarLicenca();
       await connectWhatsApp();
 
       return true;
@@ -2879,24 +2878,67 @@ ipcMain.handle(
 ipcMain.handle(
   "get-whatsapp-license",
   async () => {
-    const numero = getNumeroSessao();
-
-    if (!numero) {
-      return null;
-    }
-
-    return await atualizarLicenca(numero);
+    return await atualizarLicenca();
   }
 );
 
+ipcMain.handle(
+  "license:save",
+  async (_, key) => {
+    if (!key || !key.trim()) {
+      return {
+        autorizado: false,
+        motivo: "Chave de licença não informada.",
+      };
+    }
 
-// app.whenReady().then(
-//   function createWindow() {
-//     const win = new BrowserWindow(
-//       {"width": 800,
-//       "height":600}
-//     );
+    const keyAnterior = getLicenseKey();
 
-//       win.loadFile('../index.html')
-//   }
-// );
+    saveLicenseKey(key);
+
+    const licenca = await atualizarLicenca();
+
+    const expirada =
+      licenca.motivo === "Licença expirada" &&
+      licenca.validade &&
+      new Date(licenca.validade) <= new Date();
+
+    // Licença inválida, inexistente, desativada etc.
+    // Nesse caso, restaura a anterior.
+    if (!licenca.autorizado && !expirada) {
+      if (keyAnterior) {
+        saveLicenseKey(keyAnterior);
+
+        await atualizarLicenca();
+      } else {
+        const licensePath = path.join(
+          app.getPath("userData"),
+          "license-key"
+        );
+
+        if (fs.existsSync(licensePath)) {
+          fs.unlinkSync(licensePath);
+        }
+      }
+
+      return {
+        ...licenca,
+        autorizado: false,
+        motivo:
+          licenca.motivo ||
+          "Licença inválida.",
+      };
+    }
+
+    // Licença válida OU expirada:
+    // mantém a nova licença cadastrada.
+    return licenca;
+  }
+);
+
+ipcMain.handle(
+  "license:get-key",
+  async () => {
+    return getLicenseKey();
+  }
+);
