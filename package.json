@@ -3,15 +3,8 @@
   "productName": "CypherZap",
   "author": "Canoa Tech",
   "description": "CypherZap - automatizador de mensagens.",
-  "publish": [
-    {
-      "provider": "github",
-      "owner": "willqos15",
-      "repo": "cypherzap"
-    }
-  ],
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "commonjs",
   "main": "electron/main.cjs",
   "scripts": {
@@ -78,15 +71,28 @@
   "build": {
     "appId": "com.cypherzap",
     "productName": "CypherZap",
+     "publish": [
+    {
+      "provider": "github",
+      "owner": "willqos15",
+      "repo": "CypherZap-Releases"
+    }
+  ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
       "electron/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": "nsis"
+    },
+    "nsis":{
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }

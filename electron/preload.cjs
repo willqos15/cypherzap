@@ -142,6 +142,19 @@ enviarMensagem: (
   );
 },
 
+getLicenseKey: () => {
+  return ipcRenderer.invoke(
+    "license:get-key"
+  );
+},
+
+saveLicense: (key) => {
+  return ipcRenderer.invoke(
+    "license:save",
+    key
+  );
+},
+
 
  getWhatsAppGroups: () => {
     return ipcRenderer.invoke("whatsapp:get-groups");
