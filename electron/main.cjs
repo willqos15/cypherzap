@@ -307,6 +307,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: path.join(__dirname, 'build', 'icon.ico'),
 
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -315,8 +316,7 @@ function createWindow() {
     }
   });
 
-  //CONSOLE LOG PARA TESTE
-  mainWindow.webContents.openDevTools();
+  //CONSOLE LOG PARA TESTE mainWindow.webContents.openDevTools();
 
   if (!app.isPackaged) {
     mainWindow.loadURL("http://localhost:5173");
