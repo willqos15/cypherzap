@@ -75,7 +75,8 @@
     {
       "provider": "github",
       "owner": "willqos15",
-      "repo": "CypherZap-Releases"
+      "repo": "CypherZap-Releases",
+      "releaseType": "release"
     }
   ],
     "directories": {
